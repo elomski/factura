@@ -13,7 +13,7 @@
 // ══════════════════════════════════════════════════════
 
 // [FIX A] Nom cohérent (était "facturapo-v1")
-const CACHE_VERSION = "facturapro-v5";
+const CACHE_VERSION = "facturapro-v6";
 const CACHE_STATIC  = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 
@@ -34,7 +34,6 @@ const PRECACHE_URLS = [
   "https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js",
   "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js",
   "https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js",
-  "https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js",
 ];

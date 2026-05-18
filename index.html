@@ -11,10 +11,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FacturaPro">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- Dans <head>, après tes autres CSS -->
+<link rel="stylesheet" href="css/pwa-install.css">
+
+
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
@@ -817,7 +820,17 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
               <div class="fg">
                 <label class="flabel">Logo de l'entreprise</label>
 
-                <!-- Zone d'upload logo -->
+                <!-- Note de configuration Cloudinary (visible si non configuré) -->
+                <div id="cloudinary-setup-note" style="
+                  background:var(--amber-bg);border:1px solid var(--amber);
+                  border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;
+                  color:var(--amber);display:none;
+                ">
+                  ⚙️ Configure Cloudinary dans <strong>js/firebase-config.js</strong> pour activer l'upload.<br>
+                  Sinon, utilise l'URL externe ci-dessous.
+                </div>
+
+                <!-- Zone d'upload drag-and-drop -->
                 <div id="logo-upload-zone" style="
                   border: 2px dashed var(--border);
                   border-radius: 10px;
@@ -827,14 +840,21 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
                   transition: border-color .2s, background .2s;
                   background: var(--bg);
                 " onclick="document.getElementById('logo-file-input').click()"
-                   ondragover="event.preventDefault();this.style.borderColor='var(--copper)'"
-                   ondragleave="this.style.borderColor='var(--border)'"
-                   ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleLogoDrop(event)">
-                  <input type="file" id="logo-file-input" accept="image/jpeg,image/png,image/svg+xml,image/webp"
+                   ondragover="event.preventDefault();this.style.borderColor='var(--copper)';this.style.background='var(--copper-bg)'"
+                   ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)'"
+                   ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';handleLogoDrop(event)">
+
+                  <input type="file" id="logo-file-input"
+                    accept="image/jpeg,image/png,image/svg+xml,image/webp"
                     style="display:none;" onchange="handleLogoFileSelect(event)">
 
-                  <div id="logo-upload-preview" style="margin-bottom:10px;">
-                    <div style="width:72px;height:72px;border-radius:12px;background:var(--surface);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto;overflow:hidden;font-size:28px;" id="logo-thumb-wrap">🏪</div>
+                  <div style="margin-bottom:10px;">
+                    <div style="
+                      width:72px;height:72px;border-radius:12px;
+                      background:var(--surface);border:1.5px solid var(--border);
+                      display:flex;align-items:center;justify-content:center;
+                      margin:0 auto;overflow:hidden;font-size:28px;
+                    " id="logo-thumb-wrap">🏪</div>
                   </div>
 
                   <div id="logo-upload-status" style="font-size:12px;color:var(--ink-muted);">
@@ -842,24 +862,27 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
                     <span style="font-size:10px;">JPG · PNG · SVG · WEBP · max 2 Mo</span>
                   </div>
 
-                  <!-- Barre de progression -->
+                  <!-- Barre de progression upload -->
                   <div id="logo-progress-wrap" style="display:none;margin-top:10px;">
                     <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
-                      <div id="logo-progress-bar" style="height:100%;background:var(--copper);width:0%;transition:width .2s;border-radius:2px;"></div>
+                      <div id="logo-progress-bar" style="height:100%;background:var(--copper);width:0%;transition:width .3s;border-radius:2px;"></div>
                     </div>
                     <span id="logo-progress-pct" style="font-size:10px;color:var(--ink-muted);margin-top:4px;display:block;">0%</span>
                   </div>
                 </div>
 
-                <!-- URL manuelle (repli ou copier-coller) -->
-                <details style="margin-top:8px;">
-                  <summary style="font-size:11px;color:var(--ink-muted);cursor:pointer;list-style:none;">
-                    🔗 Utiliser une URL externe à la place
+                <!-- URL manuelle (repli si Cloudinary non configuré, ou coller une URL) -->
+                <details style="margin-top:8px;" id="logo-url-details">
+                  <summary style="font-size:11px;color:var(--ink-muted);cursor:pointer;list-style:none;padding:4px 0;">
+                    🔗 Ou colle une URL directe ▾
                   </summary>
                   <div style="margin-top:6px;">
-                    <input type="text" id="p-logo-url" class="fc" placeholder="https://i.imgur.com/…"
+                    <input type="text" id="p-logo-url" class="fc"
+                      placeholder="https://res.cloudinary.com/…/logo.png"
                       oninput="updateLogoPreview()" style="font-size:12px;">
-                    <span style="font-size:10px;color:var(--ink-muted);margin-top:3px;display:block;">imgur.com · Cloudinary · n'importe quel CDN public</span>
+                    <span style="font-size:10px;color:var(--ink-muted);margin-top:3px;display:block;">
+                      Cloudinary · imgur.com · n'importe quel CDN public avec HTTPS
+                    </span>
                   </div>
                 </details>
               </div>
@@ -1448,9 +1471,19 @@ window.resetForm = function(){
 };
 
 /* ══════════════════════════════════════════════════════
-   UPLOAD LOGO — Firebase Storage
-   Pas d'hébergement externe nécessaire, upload direct.
-   ===================================================== */
+   UPLOAD LOGO — Cloudinary (gratuit, sans carte bancaire)
+   ───────────────────────────────────────────────────────
+   CONFIGURATION (à faire une seule fois) :
+   1. Créer un compte sur https://cloudinary.com (gratuit)
+   2. Dans le dashboard → Settings → Upload → Upload presets
+      → Add upload preset → Mode: Unsigned → Enregistrer
+   3. Renseigner les 2 valeurs ci-dessous :
+   ═══════════════════════════════════════════════════════ */
+
+const CLOUDINARY_CLOUD_NAME  = "dl3bs1azn";         // ✅ Ton nom de cloud
+const CLOUDINARY_UPLOAD_PRESET = "facturapro_logos"; // ✅ Colle le nom ici !
+
+/* ─────────────────────────────────────────────────────── */
 
 function _setLogoThumb(url) {
   const wrap = document.getElementById('logo-thumb-wrap');
@@ -1477,100 +1510,18 @@ function _setLogoProgress(pct) {
   if (pct === null) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
   if (bar) bar.style.width = pct + '%';
-  if (lbl) lbl.textContent = pct + '%';
+  if (lbl) lbl.textContent = Math.round(pct) + '%';
 }
 
-async function _doUploadLogo(file) {
-  if (!file) return;
+function _applyLogoUrl(url) {
+  // 1. Input URL texte
+  const urlInput = document.getElementById('p-logo-url');
+  if (urlInput) urlInput.value = url;
 
-  const allowed = ['image/jpeg','image/png','image/svg+xml','image/webp'];
-  if (!allowed.includes(file.type)) {
-    toast('Format non supporté. Utilise JPG, PNG, SVG ou WEBP.', 'err'); return;
-  }
-  if (file.size > 2 * 1024 * 1024) {
-    toast('Fichier trop lourd (max 2 Mo).', 'err'); return;
-  }
-  if (!window.currentUser) { toast('Non connecté.', 'err'); return; }
-  if (!window.storage)     { toast('Firebase Storage non initialisé.', 'err'); return; }
+  // 2. Thumb dans la zone upload
+  _setLogoThumb(url);
 
-  // Prévisualisation locale immédiate (avant upload)
-  const reader = new FileReader();
-  reader.onload = e => _setLogoThumb(e.target.result);
-  reader.readAsDataURL(file);
-
-  _setLogoStatus('⬆️ Envoi en cours…', 'var(--copper)');
-  _setLogoProgress(0);
-
-  try {
-    const ext  = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `logos/${window.currentUser.uid}/logo_${Date.now()}.${ext}`;
-    const ref  = window.storage.ref(path);
-    const task = ref.put(file, { contentType: file.type });
-
-    task.on('state_changed',
-      snap => {
-        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        _setLogoProgress(pct);
-      },
-      err => {
-        _setLogoProgress(null);
-        _setLogoStatus('❌ ' + err.message, 'var(--red)');
-        toast('Erreur upload : ' + err.message, 'err');
-      },
-      async () => {
-        const url = await task.snapshot.ref.getDownloadURL();
-        _setLogoProgress(null);
-        _setLogoStatus('✅ Logo enregistré !', 'var(--green)');
-
-        // Mettre à jour l'input URL caché + prévisualisation
-        const urlInput = document.getElementById('p-logo-url');
-        if (urlInput) urlInput.value = url;
-        _setLogoThumb(url);
-
-        // Mettre à jour preview sidebar
-        const sideWrap = document.getElementById('logo-preview-wrap');
-        if (sideWrap) {
-          sideWrap.innerHTML =
-            `<img src="${escHtml(url)}" alt="Logo"
-               style="width:100%;height:100%;object-fit:contain;"
-               onerror="this.parentNode.innerHTML='🏪'">`;
-        }
-
-        // Sauvegarder logoUrl dans Firestore immédiatement
-        try {
-          await db.collection('settings').doc('entreprise').set(
-            { logoUrl: url }, { merge: true }
-          );
-          window.entreprise = { ...(window.entreprise || {}), logoUrl: url };
-          toast('✅ Logo sauvegardé !');
-        } catch(e) {
-          toast('Logo uploadé, mais erreur Firestore : ' + e.message, 'err');
-        }
-      }
-    );
-  } catch(e) {
-    _setLogoProgress(null);
-    _setLogoStatus('❌ ' + e.message, 'var(--red)');
-    toast('Erreur : ' + e.message, 'err');
-  }
-}
-
-window.handleLogoFileSelect = function(event) {
-  const file = event.target.files?.[0];
-  if (file) _doUploadLogo(file);
-  event.target.value = ''; // reset pour permettre de re-sélectionner
-};
-
-window.handleLogoDrop = function(event) {
-  const file = event.dataTransfer.files?.[0];
-  if (file) _doUploadLogo(file);
-};
-
-// Sync le thumb quand on colle une URL manuellement
-document.getElementById('p-logo-url')?.addEventListener('input', function() {
-  const url = this.value.trim();
-  _setLogoThumb(url || null);
-  // Aussi mettre à jour la sidebar
+  // 3. Prévisualisation sidebar paramètres
   const sideWrap = document.getElementById('logo-preview-wrap');
   if (sideWrap) {
     sideWrap.innerHTML = url
@@ -1579,11 +1530,137 @@ document.getElementById('p-logo-url')?.addEventListener('input', function() {
            onerror="this.parentNode.innerHTML='🏪'">`
       : '🏪';
   }
+}
+
+async function _saveLogoToFirestore(url) {
+  try {
+    await db.collection('settings').doc('entreprise').set(
+      { logoUrl: url }, { merge: true }
+    );
+    window.entreprise = { ...(window.entreprise || {}), logoUrl: url };
+    toast('✅ Logo sauvegardé !');
+  } catch(e) {
+    toast('Logo uploadé, mais erreur Firestore : ' + e.message, 'err');
+  }
+}
+
+async function _doUploadLogo(file) {
+  if (!file) return;
+
+  // Validations
+  const allowed = ['image/jpeg','image/png','image/svg+xml','image/webp'];
+  if (!allowed.includes(file.type)) {
+    toast('Format non supporté. Utilise JPG, PNG, SVG ou WEBP.', 'err'); return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    toast('Fichier trop lourd (max 2 Mo).', 'err'); return;
+  }
+
+  // Prévisualisation locale IMMÉDIATE (avant upload)
+  const reader = new FileReader();
+  reader.onload = e => _setLogoThumb(e.target.result);
+  reader.readAsDataURL(file);
+
+  // Vérifier la config Cloudinary
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+    // Pas de Cloudinary configuré → mode URL uniquement
+    const note = document.getElementById('cloudinary-setup-note');
+    if (note) note.style.display = '';
+    _setLogoStatus(
+      '⚠️ Cloudinary non configuré.<br><span style="font-size:10px;">Configure le cloud_name et upload_preset dans index.html,<br>ou colle une URL directe ci-dessous.</span>',
+      'var(--amber)'
+    );
+    // Ouvrir automatiquement le panneau URL manuelle
+    const det = document.getElementById('logo-url-details');
+    if (det) det.open = true;
+    return;
+  }
+
+  _setLogoStatus('⬆️ Envoi vers Cloudinary…', 'var(--copper)');
+  _setLogoProgress(0);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    // Dossier optionnel pour organiser les logos
+    if (window.currentUser?.uid) {
+      formData.append('folder', `facturapro/${window.currentUser.uid}`);
+    }
+    // Tag pour identifier facilement dans le dashboard Cloudinary
+    formData.append('tags', 'facturapro,logo');
+
+    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+
+    // XHR avec progression (fetch ne supporte pas onprogress)
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) _setLogoProgress((e.loaded / e.total) * 100);
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            // Préférer l'URL sécurisée HTTPS
+            const logoUrl = res.secure_url || res.url;
+            resolve(logoUrl);
+          } catch {
+            reject(new Error('Réponse Cloudinary invalide'));
+          }
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.error?.message || `HTTP ${xhr.status}`));
+          } catch {
+            reject(new Error(`HTTP ${xhr.status}`));
+          }
+        }
+      });
+
+      xhr.addEventListener('error',   () => reject(new Error('Erreur réseau')));
+      xhr.addEventListener('timeout', () => reject(new Error('Délai dépassé')));
+      xhr.timeout = 30000; // 30s max
+
+      xhr.open('POST', url);
+      xhr.send(formData);
+    }).then(async logoUrl => {
+      _setLogoProgress(null);
+      _setLogoStatus('✅ Logo enregistré !', 'var(--green)');
+      _applyLogoUrl(logoUrl);
+      await _saveLogoToFirestore(logoUrl);
+    });
+
+  } catch(e) {
+    _setLogoProgress(null);
+    _setLogoStatus('❌ ' + e.message, 'var(--red)');
+    toast('Erreur upload : ' + e.message, 'err');
+    // En cas d'échec, ouvrir l'option URL manuelle
+    const det = document.getElementById('logo-url-details');
+    if (det) det.open = true;
+  }
+}
+
+window.handleLogoFileSelect = function(event) {
+  const file = event.target.files?.[0];
+  if (file) _doUploadLogo(file);
+  event.target.value = ''; // reset pour re-sélectionner le même fichier
+};
+
+window.handleLogoDrop = function(event) {
+  const file = event.dataTransfer.files?.[0];
+  if (file) _doUploadLogo(file);
+};
+
+// Sync thumb + sidebar quand on colle une URL manuellement
+document.getElementById('p-logo-url')?.addEventListener('input', function() {
+  const url = this.value.trim();
+  _applyLogoUrl(url || '');
 });
 
-// Restaurer le thumb au chargement des paramètres depuis Firestore
-// (app.js appelle remplirChampsEntreprise → updateLogoPreview,
-//  on hook aussi le thumb de la zone upload)
+// Hook updateLogoPreview pour aussi mettre à jour le thumb zone upload
 const _origUpdateLogoPreview = window.updateLogoPreview;
 window.updateLogoPreview = function() {
   if (typeof _origUpdateLogoPreview === 'function') _origUpdateLogoPreview();
@@ -1593,5 +1670,8 @@ window.updateLogoPreview = function() {
 
 })();
 </script>
+
+<!-- Avant </body>, APRÈS app.js -->
+<script src="js/pwa-install.js"></script>
 </body>
 </html>

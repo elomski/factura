@@ -5,11 +5,10 @@
 //    1. firebase-app.js        (CDN)
 //    2. firebase-firestore.js  (CDN)
 //    3. firebase-auth.js       (CDN)
-//    4. firebase-storage.js    (CDN)  ← NOUVEAU
-//    5. firebase-config.js     ← CE FICHIER
-//    6. utils.js
-//    7. print.js / pdf.js / catalogue.js / credits.js
-//    8. app.js
+//    4. firebase-config.js     ← CE FICHIER
+//    5. utils.js
+//    6. print.js / pdf.js / catalogue.js / credits.js
+//    7. app.js
 // ══════════════════════════════════════════════════════
 
 const FIREBASE_CONFIG = {
@@ -48,38 +47,8 @@ db.enablePersistence({ synchronizeTabs: true })
 // ── Auth ──
 const auth = firebase.auth();
 
-// ── Storage ──
-const storage = firebase.storage();
-
 // ── Exposition globale ──
-window.db      = db;
-window.auth    = auth;
-window.storage = storage;
-
-// ════════════════════════════════════════════════════
-//  uploadLogo(file) — Upload logo vers Firebase Storage
-//  Retourne l'URL publique de téléchargement.
-//
-//  Utilisation dans index.html :
-//    const url = await uploadLogo(file);
-//    document.getElementById('p-logo-url').value = url;
-// ════════════════════════════════════════════════════
-window.uploadLogo = async function uploadLogo(file) {
-  if (!window.currentUser) throw new Error("Non connecté.");
-
-  // Valider le type et la taille (max 2 Mo)
-  const allowed = ["image/jpeg", "image/png", "image/svg+xml", "image/webp"];
-  if (!allowed.includes(file.type))
-    throw new Error("Format non supporté. Utilise JPG, PNG, SVG ou WEBP.");
-  if (file.size > 2 * 1024 * 1024)
-    throw new Error("Fichier trop lourd. Maximum 2 Mo.");
-
-  // Chemin : logos/{uid}/logo_{timestamp}.{ext}
-  const ext      = file.name.split(".").pop().toLowerCase() || "png";
-  const path     = `logos/${window.currentUser.uid}/logo_${Date.now()}.${ext}`;
-  const ref      = storage.ref(path);
-
-  const snapshot = await ref.put(file, { contentType: file.type });
-  const url      = await snapshot.ref.getDownloadURL();
-  return url;
-};
+window.db   = db;
+window.auth = auth;
+// Note : Firebase Storage retiré → upload logo via Cloudinary (gratuit, sans carte bancaire)
+// Voir la configuration CLOUDINARY_CLOUD_NAME dans index.html

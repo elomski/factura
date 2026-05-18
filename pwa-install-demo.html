@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FacturaPro — PWA Install Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS FacturaPro ── */
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#F7F3EE;--bg-alt:#EDE8E0;--surface:#FFF;
+  --border:#DDD5C8;--border-dk:#C4B9A8;
+  --ink:#1C1712;--ink-mid:#4A3F35;--ink-soft:#7A6E65;--ink-muted:#A89E95;
+  --copper:#B5622B;--copper-lt:#D4824A;--copper-bg:#FBF0E8;--copper-brd:#E8C4A8;
+  --green:#2A6644;--green-bg:#E8F4EE;
+  --red:#8B2020;--red-bg:#FAEAEA;
+  --sidebar-w:240px;--topbar-h:60px;
+  --radius:10px;--radius-lg:16px;
+  --shadow-sm:0 1px 3px rgba(28,23,18,.08);
+  --shadow-md:0 4px 12px rgba(28,23,18,.1);
+  --shadow-lg:0 12px 40px rgba(28,23,18,.14),0 4px 12px rgba(28,23,18,.08);
+  /* PWA vars */
+  --pwa-copper:    var(--copper);
+  --pwa-copper-lt: var(--copper-lt);
+  --pwa-ink:       var(--ink);
+  --pwa-bg:        var(--bg);
+  --pwa-surface:   var(--surface);
+  --pwa-border:    var(--border);
+  --pwa-green:     var(--green);
+  --pwa-shadow-lg: var(--shadow-lg);
+  --pwa-radius:    var(--radius-lg);
+}
+html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--ink);}
+
+/* ── LAYOUT APP (simplifié) ── */
+.app{display:flex;height:100vh;overflow:hidden;}
+.sidebar{width:var(--sidebar-w);background:var(--ink);display:flex;flex-direction:column;flex-shrink:0;}
+.sb-brand{padding:20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:12px;}
+.sb-brand-icon{width:36px;height:36px;border-radius:10px;background:var(--copper);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.sb-brand-name{font-family:'DM Serif Display',serif;font-size:18px;color:#fff;line-height:1.1;}
+.sb-brand-tag{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.35);}
+.sb-nav{flex:1;padding:12px 10px;overflow-y:auto;}
+.sb-section{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.2);font-weight:600;padding:0 10px;margin:16px 0 5px;}
+.sb-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;width:100%;text-align:left;margin-bottom:2px;border:none;background:transparent;}
+.sb-item.active{background:rgba(181,98,43,.25);color:#E8A070;}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-title{font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.topbar-user{font-size:12px;color:var(--ink-soft);background:var(--bg);border:1px solid var(--border);padding:6px 14px;border-radius:20px;}
+.content{flex:1;overflow-y:auto;padding:24px 28px;}
+.panel{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm);margin-bottom:18px;}
+.panel-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.panel-title{font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink);}
+.panel-body{padding:20px;}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;border:none;cursor:pointer;}
+.btn-primary{background:var(--copper);color:#fff;}
+.btn-dark{background:var(--ink);color:#fff;}
+.btn-ghost{background:transparent;color:var(--ink-mid);border:1.5px solid var(--border);}
+
+/* ── DEMO CONTROLS ── */
+.demo-panel{background:linear-gradient(135deg,var(--ink) 0%, #2C1F1A 100%);border-radius:var(--radius-lg);padding:22px;margin-bottom:20px;border:1px solid rgba(255,255,255,.07);}
+.demo-panel-title{font-family:'DM Serif Display',serif;font-size:18px;color:#fff;margin-bottom:6px;}
+.demo-panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.demo-btn{display:flex;flex-direction:column;gap:4px;padding:14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;cursor:pointer;transition:all .2s;text-align:left;}
+.demo-btn:hover{background:rgba(181,98,43,.2);border-color:rgba(181,98,43,.4);}
+.demo-btn-icon{font-size:20px;margin-bottom:2px;}
+.demo-btn-label{font-size:12px;font-weight:700;color:#fff;}
+.demo-btn-sub{font-size:10px;color:rgba(255,255,255,.4);}
+.platform-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.pchip{padding:5px 12px;border:1.5px solid rgba(255,255,255,.15);border-radius:20px;font-size:11px;font-weight:600;color:rgba(255,255,255,.5);cursor:pointer;background:transparent;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.pchip.active{background:var(--copper);border-color:var(--copper);color:#fff;}
+.demo-note{font-size:11px;color:rgba(255,255,255,.3);margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);line-height:1.5;}
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;}
+.info-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;}
+.info-card-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:5px;}
+.info-card-val{font-family:'DM Mono',monospace;font-size:13px;color:var(--copper);}
+
+@media(max-width:680px){
+  .sidebar{display:none;}
+  .content{padding:12px;}
+  .demo-grid{grid-template-columns:1fr 1fr;}
+  .info-grid{grid-template-columns:1fr 1fr;}
+}
+</style>
+
+<!-- ══ CSS PWA INSTALL ══ -->
+<style>
+/* ── Variables locales (fallbacks si tokens absents) ── */
+:root {
+  --pwa-copper:    var(--copper,    #B5622B);
+  --pwa-copper-lt: var(--copper-lt, #D4824A);
+  --pwa-ink:       var(--ink,       #1C1712);
+  --pwa-bg:        var(--bg,        #F7F3EE);
+  --pwa-surface:   var(--surface,   #FFF);
+  --pwa-border:    var(--border,    #DDD5C8);
+  --pwa-green:     var(--green,     #2A6644);
+  --pwa-shadow-lg: var(--shadow-lg, 0 12px 40px rgba(28,23,18,.18));
+  --pwa-radius:    var(--radius-lg, 16px);
+}
+
+/* ══ 1. BOUTON TOPBAR ══ */
+.pwa-topbar-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:transparent;border:1.5px solid var(--pwa-border);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--pwa-copper);cursor:pointer;position:relative;overflow:visible;transition:all .25s cubic-bezier(.34,1.56,.64,1);opacity:0;transform:translateY(-6px) scale(.9);pointer-events:none;}
+.pwa-topbar-btn.pwa-btn-visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+.pwa-topbar-btn:hover{background:var(--pwa-copper);border-color:var(--pwa-copper);color:#fff;transform:translateY(-1px) scale(1.03);box-shadow:0 4px 16px rgba(181,98,43,.35);}
+.pwa-topbar-btn:active{transform:scale(.97);}
+.pwa-btn-icon{display:flex;align-items:center;justify-content:center;}
+.pwa-btn-label{line-height:1;}
+.pwa-btn-badge{position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#e53935;border-radius:50%;border:2px solid var(--pwa-surface);animation:pwaBadgePulse 2s ease-in-out infinite;}
+@keyframes pwaBadgePulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.4);opacity:.7;}}
+@media(max-width:680px){.pwa-topbar-btn{padding:7px;border-radius:8px;}.pwa-btn-label{display:none;}.pwa-btn-badge{top:-3px;right:-3px;}}
+
+/* ══ 2. MOBILE BANNER ══ */
+.pwa-mobile-banner{position:fixed;bottom:0;left:0;right:0;z-index:8800;background:var(--pwa-surface);border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(28,23,18,.18);transform:translateY(110%);transition:transform .4s cubic-bezier(.34,1.26,.64,1);padding-bottom:env(safe-area-inset-bottom,0px);will-change:transform;}
+.pwa-mobile-banner.pwa-banner-visible{transform:translateY(0);}
+.pwa-mobile-banner.pwa-banner-hiding{transform:translateY(110%);transition:transform .35s cubic-bezier(.4,0,.6,1);}
+.pwa-banner-drag-handle{width:40px;height:4px;background:var(--pwa-border);border-radius:2px;margin:12px auto 0;cursor:grab;touch-action:none;}
+.pwa-banner-inner{padding:16px 22px 22px;}
+.pwa-banner-app{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.pwa-banner-icon{width:56px;height:56px;background:linear-gradient(135deg,var(--pwa-copper) 0%,var(--pwa-copper-lt) 100%);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;box-shadow:0 4px 16px rgba(181,98,43,.35);}
+.pwa-banner-name{font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:var(--pwa-ink);line-height:1.1;margin-bottom:3px;}
+.pwa-banner-desc{font-size:12px;color:#777;margin-bottom:4px;}
+.pwa-banner-stars{font-size:11px;color:var(--pwa-copper);font-weight:600;}
+.pwa-banner-stars span{color:#999;font-weight:400;}
+.pwa-banner-features{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px;}
+.pwa-feature-pill{padding:5px 11px;background:var(--pwa-bg);border:1px solid var(--pwa-border);border-radius:20px;font-size:11px;font-weight:600;color:var(--pwa-ink);white-space:nowrap;}
+.pwa-banner-actions{display:flex;flex-direction:column;gap:10px;}
+.pwa-banner-install{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:var(--pwa-ink);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s,transform .15s;}
+.pwa-banner-install:hover,.pwa-banner-install:active{background:var(--pwa-copper);transform:scale(.98);}
+.pwa-banner-got-it{display:flex;align-items:center;justify-content:center;padding:14px;background:var(--pwa-copper);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s;}
+.pwa-banner-got-it:hover{background:var(--pwa-copper-lt);}
+.pwa-banner-dismiss{background:transparent;border:none;color:#999;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;padding:6px;transition:color .2s;text-align:center;}
+.pwa-banner-dismiss:hover{color:var(--pwa-ink);}
+.pwa-ios-guide{background:var(--pwa-bg);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px;}
+.pwa-ios-step{display:flex;align-items:flex-start;gap:10px;}
+.pwa-ios-step-num{width:22px;height:22px;background:var(--pwa-copper);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;margin-top:1px;}
+.pwa-ios-step-text{font-size:13px;color:var(--pwa-ink);line-height:1.45;}
+.pwa-ios-step-text strong{color:var(--pwa-copper);}
+.pwa-ios-icon{display:inline-flex;align-items:center;vertical-align:middle;background:rgba(181,98,43,.1);border-radius:5px;padding:2px 5px;margin:0 2px;}
+
+/* ══ 3. TABLET BANNER ══ */
+.pwa-tablet-banner{border-radius:20px!important;max-width:560px;left:50%;right:auto;bottom:24px;transform:translateX(-50%) translateY(calc(100% + 40px))!important;box-shadow:var(--pwa-shadow-lg)!important;}
+.pwa-tablet-banner.pwa-banner-visible{transform:translateX(-50%) translateY(0)!important;}
+.pwa-tablet-banner.pwa-banner-hiding{transform:translateX(-50%) translateY(calc(100% + 40px))!important;}
+.pwa-tablet-layout{display:flex;gap:18px;align-items:flex-start;}
+.pwa-banner-icon-lg{width:72px;height:72px;font-size:34px;border-radius:18px;flex-shrink:0;}
+.pwa-tablet-title{font-size:20px;margin-bottom:6px;}
+.pwa-tablet-subtitle{font-size:13px;color:#666;line-height:1.5;margin-bottom:12px;}
+.pwa-tablet-features{margin-bottom:14px!important;}
+.pwa-tablet-actions{display:flex;gap:10px;align-items:center;}
+.pwa-tablet-actions .pwa-banner-install{flex:1;padding:11px 16px;font-size:13px;}
+.pwa-tablet-actions .pwa-banner-dismiss{font-size:12px;white-space:nowrap;}
+.pwa-ios-guide-inline{flex-direction:column;gap:8px;margin-bottom:12px;}
+.pwa-ios-guide-inline .pwa-ios-step-text{font-size:12px;}
+.pwa-banner-close-x{position:absolute;top:14px;right:14px;background:var(--pwa-bg);border:1px solid var(--pwa-border);border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#999;transition:all .2s;}
+.pwa-banner-close-x:hover{background:var(--pwa-ink);color:#fff;border-color:var(--pwa-ink);}
+.pwa-tablet-banner .pwa-banner-inner{position:relative;padding:20px 22px 22px;}
+
+/* ══ 4. DESKTOP HINT ══ */
+.pwa-desktop-hint{position:fixed;bottom:24px;right:24px;z-index:8700;background:var(--pwa-surface);border:1px solid var(--pwa-border);border-radius:14px;box-shadow:0 8px 32px rgba(28,23,18,.14);opacity:0;transform:translateY(12px);transition:all .35s cubic-bezier(.34,1.26,.64,1);max-width:360px;pointer-events:none;}
+.pwa-desktop-hint.pwa-hint-visible{opacity:1;transform:translateY(0);pointer-events:auto;}
+.pwa-desktop-hint-inner{display:flex;align-items:center;gap:10px;padding:12px 14px;}
+.pwa-hint-icon{font-size:18px;flex-shrink:0;}
+.pwa-hint-text{font-size:12px;color:#666;line-height:1.4;flex:1;}
+.pwa-hint-install-btn{padding:7px 14px;background:var(--pwa-ink);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .2s;flex-shrink:0;}
+.pwa-hint-install-btn:hover{background:var(--pwa-copper);}
+.pwa-hint-close{background:transparent;border:none;color:#bbb;cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:5px;transition:color .2s;flex-shrink:0;}
+.pwa-hint-close:hover{color:var(--pwa-ink);}
+
+/* ══ 5. SUCCESS MODAL ══ */
+.pwa-success-modal{position:fixed;inset:0;background:rgba(28,23,18,.55);backdrop-filter:blur(4px);z-index:9100;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .3s ease;}
+.pwa-success-modal.pwa-modal-visible{opacity:1;}
+.pwa-success-inner{background:var(--pwa-surface);border-radius:20px;padding:32px 28px;max-width:360px;width:100%;text-align:center;box-shadow:var(--pwa-shadow-lg);transform:scale(.9);transition:transform .35s cubic-bezier(.34,1.56,.64,1);}
+.pwa-success-modal.pwa-modal-visible .pwa-success-inner{transform:scale(1);}
+.pwa-success-icon{font-size:52px;display:block;margin-bottom:14px;animation:pwaBounce .6s .1s both cubic-bezier(.34,1.56,.64,1);}
+@keyframes pwaBounce{from{transform:scale(0) rotate(-15deg);opacity:0;}to{transform:scale(1) rotate(0deg);opacity:1;}}
+.pwa-success-title{font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:var(--pwa-ink);margin-bottom:10px;}
+.pwa-success-text{font-size:14px;color:#777;line-height:1.55;margin-bottom:22px;}
+.pwa-success-btn{padding:12px 28px;background:var(--pwa-ink);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s;}
+.pwa-success-btn:hover{background:var(--pwa-copper);}
+
+@media(prefers-reduced-motion:reduce){.pwa-mobile-banner,.pwa-desktop-hint,.pwa-topbar-btn,.pwa-success-modal,.pwa-success-inner{transition:none!important;animation:none!important;}.pwa-btn-badge{animation:none!important;}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar simulée -->
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-brand-icon">🧾</div>
+      <div><div class="sb-brand-name">FacturaPro</div><div class="sb-brand-tag">Facturation</div></div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">Vue d'ensemble</div>
+      <button class="sb-item active">📊 Tableau de bord</button>
+      <div class="sb-section">Ventes</div>
+      <button class="sb-item">➕ Nouvelle vente</button>
+      <button class="sb-item">📋 Historique</button>
+      <div class="sb-section">Catalogue</div>
+      <button class="sb-item">📦 Produits</button>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <!-- Topbar (le bouton PWA sera injecté ici) -->
+    <div class="topbar">
+      <div class="topbar-title">Tableau de bord</div>
+      <div class="topbar-right">
+        <!-- Bouton PWA injecté dynamiquement -->
+        <div class="topbar-user">admin@boutique.com</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Panneau de contrôle démo -->
+      <div class="demo-panel">
+        <div class="demo-panel-title">🎛️ Démonstration PWA Install</div>
+        <div class="demo-panel-sub">Simule chaque composant selon la plateforme cible</div>
+
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:7px;">Simuler une plateforme</div>
+        <div class="platform-chips">
+          <button class="pchip active" onclick="setPlatform('desktop',this)">💻 Desktop</button>
+          <button class="pchip" onclick="setPlatform('android-phone',this)">📱 Android</button>
+          <button class="pchip" onclick="setPlatform('ios-phone',this)">🍎 iPhone</button>
+          <button class="pchip" onclick="setPlatform('android-tablet',this)">⬛ Tablette Android</button>
+          <button class="pchip" onclick="setPlatform('ios-tablet',this)">⬜ iPad</button>
+        </div>
+
+        <div class="demo-grid">
+          <button class="demo-btn" onclick="showComponent('topbar')">
+            <div class="demo-btn-icon">🔝</div>
+            <div class="demo-btn-label">Bouton Topbar</div>
+            <div class="demo-btn-sub">Apparaît dans la barre du haut</div>
+          </button>
+          <button class="demo-btn" onclick="showComponent('mobile')">
+            <div class="demo-btn-icon">📲</div>
+            <div class="demo-btn-label">Banner Mobile</div>
+            <div class="demo-btn-sub">Bottom-sheet Android/iOS</div>
+          </button>
+          <button class="demo-btn" onclick="showComponent('tablet')">
+            <div class="demo-btn-icon">💬</div>
+            <div class="demo-btn-label">Banner Tablette</div>
+            <div class="demo-btn-sub">Modal centré tablette</div>
+          </button>
+          <button class="demo-btn" onclick="showComponent('desktop')">
+            <div class="demo-btn-icon">💡</div>
+            <div class="demo-btn-label">Hint Desktop</div>
+            <div class="demo-btn-sub">Toast coin bas-droit</div>
+          </button>
+          <button class="demo-btn" onclick="showComponent('success')">
+            <div class="demo-btn-icon">🎉</div>
+            <div class="demo-btn-label">Succès Installation</div>
+            <div class="demo-btn-sub">Modal post-installation</div>
+          </button>
+          <button class="demo-btn" onclick="resetAll()">
+            <div class="demo-btn-icon">🔄</div>
+            <div class="demo-btn-label">Tout fermer</div>
+            <div class="demo-btn-sub">Reset tous les composants</div>
+          </button>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-card-lbl">Plateforme</div>
+            <div class="info-card-val" id="info-platform">desktop</div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-lbl">Standalone</div>
+            <div class="info-card-val" id="info-standalone">non</div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-lbl">Refus stocké</div>
+            <div class="info-card-val" id="info-dismissed">non</div>
+          </div>
+        </div>
+
+        <div class="demo-note">
+          💡 En production, les composants s'affichent automatiquement selon la vraie plateforme de l'utilisateur.<br>
+          Le bouton topbar est toujours injecté. Le banner/hint apparaît si l'app n'est pas déjà installée et si l'utilisateur n'a pas refusé récemment.
+        </div>
+      </div>
+
+      <!-- Contenu factice pour simuler l'app -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">📋 Aperçu du contenu FacturaPro</div>
+        </div>
+        <div class="panel-body">
+          <p style="color:var(--ink-soft);font-size:13px;line-height:1.7;">
+            Le contenu de l'application continue ici normalement. Les composants PWA se superposent sans bloquer l'interface principale. Le banner mobile et le hint desktop apparaissent au-dessus du contenu via <code style="background:var(--bg);padding:2px 5px;border-radius:4px;font-family:'DM Mono',monospace;">position: fixed</code>.
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;">
+            <div style="background:var(--bg);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);">12</div>
+              <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">Ventes du jour</div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);">487k</div>
+              <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">CA du jour</div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);">89</div>
+              <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">Ce mois</div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);">3.2M</div>
+              <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">CA mensuel</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast (simulé) -->
+<div id="toast" style="position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);display:none;"></div>
+
+<script>
+/* ── Toast simulé ── */
+window.toast = function(msg, type = 'ok', dur = 3800) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.background = type === 'ok' ? '#1C1712' : type === 'err' ? '#8B2020' : '#1E3A5F';
+  el.style.color = type === 'ok' ? '#E8A070' : '#fff';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.display = 'none', dur);
+};
+
+/* ── Simulation plateforme ── */
+let _simulatedPlatform = 'desktop';
+
+function setPlatform(p, btn) {
+  _simulatedPlatform = p;
+  document.querySelectorAll('.pchip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('info-platform').textContent = p;
+}
+
+/* ── Démo : afficher un composant ── */
+function showComponent(type) {
+  resetAll();
+  setTimeout(() => {
+    if (type === 'topbar') showTopbarBtn();
+    else if (type === 'mobile') showMobileBannerDemo(_simulatedPlatform.startsWith('ios'));
+    else if (type === 'tablet') showTabletBannerDemo(_simulatedPlatform.startsWith('ios'));
+    else if (type === 'desktop') showDesktopHintDemo();
+    else if (type === 'success') showSuccessModalDemo();
+  }, 50);
+}
+
+function resetAll() {
+  document.getElementById('pwa-topbar-btn')?.remove();
+  document.getElementById('pwa-mobile-banner')?.remove();
+  document.getElementById('pwa-desktop-hint')?.remove();
+  document.getElementById('pwa-success-modal')?.remove();
+}
+
+/* ── 1. Topbar Button ── */
+function showTopbarBtn() {
+  if (document.getElementById('pwa-topbar-btn')) return;
+  const topbarRight = document.querySelector('.topbar-right');
+  const btn = document.createElement('button');
+  btn.id        = 'pwa-topbar-btn';
+  btn.className = 'pwa-topbar-btn';
+  btn.title     = 'Installer FacturaPro sur cet appareil';
+  btn.innerHTML = `
+    <span class="pwa-btn-icon">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v13M8 11l4 4 4-4"/>
+        <path d="M20 16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4"/>
+      </svg>
+    </span>
+    <span class="pwa-btn-label">Installer</span>
+    <span class="pwa-btn-badge"></span>
+  `;
+  btn.onclick = () => toast('💡 En production : déclenche le prompt natif ou le guide iOS', 'info');
+  const userEl = topbarRight.querySelector('.topbar-user');
+  if (userEl) topbarRight.insertBefore(btn, userEl);
+  else topbarRight.appendChild(btn);
+  requestAnimationFrame(() => requestAnimationFrame(() => btn.classList.add('pwa-btn-visible')));
+}
+
+/* ── 2. Mobile Banner ── */
+function showMobileBannerDemo(isIOS) {
+  if (document.getElementById('pwa-mobile-banner')) return;
+  const banner = document.createElement('div');
+  banner.id        = 'pwa-mobile-banner';
+  banner.className = 'pwa-mobile-banner';
+  banner.innerHTML = `
+    <div class="pwa-banner-drag-handle"></div>
+    <div class="pwa-banner-inner">
+      <div class="pwa-banner-app">
+        <div class="pwa-banner-icon">🧾</div>
+        <div class="pwa-banner-info">
+          <div class="pwa-banner-name">FacturaPro</div>
+          <div class="pwa-banner-desc">Facturation hors ligne · Rapide · Gratuit</div>
+          <div class="pwa-banner-stars">★★★★★ <span>Application professionnelle</span></div>
+        </div>
+      </div>
+      ${isIOS ? `
+        <div class="pwa-ios-guide">
+          <div class="pwa-ios-step">
+            <div class="pwa-ios-step-num">1</div>
+            <div class="pwa-ios-step-text">Appuie sur <strong>Partager</strong> <span class="pwa-ios-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg></span> en bas de Safari</div>
+          </div>
+          <div class="pwa-ios-step">
+            <div class="pwa-ios-step-num">2</div>
+            <div class="pwa-ios-step-text">Sélectionne <strong>Sur l'écran d'accueil</strong> <span class="pwa-ios-icon">＋</span></div>
+          </div>
+          <div class="pwa-ios-step">
+            <div class="pwa-ios-step-num">3</div>
+            <div class="pwa-ios-step-text">Appuie sur <strong>Ajouter</strong> — c'est tout !</div>
+          </div>
+        </div>
+        <div class="pwa-banner-actions">
+          <button class="pwa-banner-got-it" onclick="dismissBannerDemo()">J'ai compris !</button>
+        </div>
+      ` : `
+        <div class="pwa-banner-features">
+          <div class="pwa-feature-pill">⚡ Hors ligne</div>
+          <div class="pwa-feature-pill">📥 PDF instantané</div>
+          <div class="pwa-feature-pill">🚀 Ultra rapide</div>
+        </div>
+        <div class="pwa-banner-actions">
+          <button class="pwa-banner-install" onclick="toast('✅ Prompt natif Android ici !','ok');dismissBannerDemo();">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M8 11l4 4 4-4"/><path d="M20 16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4"/></svg>
+            Installer l'app
+          </button>
+          <button class="pwa-banner-dismiss" onclick="dismissBannerDemo()">Plus tard</button>
+        </div>
+      `}
+    </div>
+  `;
+  document.body.appendChild(banner);
+  setupSwipe(banner);
+  requestAnimationFrame(() => requestAnimationFrame(() => banner.classList.add('pwa-banner-visible')));
+}
+
+function dismissBannerDemo() {
+  const b = document.getElementById('pwa-mobile-banner');
+  if (!b) return;
+  b.classList.remove('pwa-banner-visible');
+  b.classList.add('pwa-banner-hiding');
+  setTimeout(() => b?.remove(), 400);
+}
+
+/* ── 3. Tablet Banner ── */
+function showTabletBannerDemo(isIOS) {
+  if (document.getElementById('pwa-mobile-banner')) return;
+  const banner = document.createElement('div');
+  banner.id        = 'pwa-mobile-banner';
+  banner.className = 'pwa-mobile-banner pwa-tablet-banner';
+  banner.innerHTML = `
+    <div class="pwa-banner-inner">
+      <button class="pwa-banner-close-x" onclick="dismissBannerDemo()">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="pwa-tablet-layout">
+        <div class="pwa-banner-icon pwa-banner-icon-lg">🧾</div>
+        <div class="pwa-tablet-content">
+          <div class="pwa-banner-name pwa-tablet-title">Installer FacturaPro</div>
+          <div class="pwa-tablet-subtitle">Accédez à votre application de facturation même hors ligne, directement depuis votre écran d'accueil.</div>
+          <div class="pwa-banner-features pwa-tablet-features">
+            <div class="pwa-feature-pill">⚡ Hors ligne</div>
+            <div class="pwa-feature-pill">📥 PDF</div>
+            <div class="pwa-feature-pill">🔔 Notifs</div>
+            <div class="pwa-feature-pill">🚀 Rapide</div>
+          </div>
+          ${isIOS ? `
+            <div class="pwa-ios-guide pwa-ios-guide-inline">
+              <div class="pwa-ios-step"><div class="pwa-ios-step-num">1</div><div class="pwa-ios-step-text">Bouton <strong>Partager</strong> dans Safari</div></div>
+              <div class="pwa-ios-step"><div class="pwa-ios-step-num">2</div><div class="pwa-ios-step-text"><strong>Sur l'écran d'accueil</strong> ＋</div></div>
+              <div class="pwa-ios-step"><div class="pwa-ios-step-num">3</div><div class="pwa-ios-step-text">Tap <strong>Ajouter</strong></div></div>
+            </div>
+            <button class="pwa-banner-got-it" onclick="dismissBannerDemo()">Compris !</button>
+          ` : `
+            <div class="pwa-tablet-actions">
+              <button class="pwa-banner-install" onclick="toast('✅ Installation lancée !','ok');dismissBannerDemo();">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M8 11l4 4 4-4"/><path d="M20 16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4"/></svg>
+                Installer maintenant
+              </button>
+              <button class="pwa-banner-dismiss" onclick="dismissBannerDemo()">Pas maintenant</button>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(banner);
+  requestAnimationFrame(() => requestAnimationFrame(() => banner.classList.add('pwa-banner-visible')));
+}
+
+/* ── 4. Desktop Hint ── */
+function showDesktopHintDemo() {
+  if (document.getElementById('pwa-desktop-hint')) return;
+  const hint = document.createElement('div');
+  hint.id        = 'pwa-desktop-hint';
+  hint.className = 'pwa-desktop-hint';
+  hint.innerHTML = `
+    <div class="pwa-desktop-hint-inner">
+      <span class="pwa-hint-icon">💡</span>
+      <span class="pwa-hint-text">Installe FacturaPro pour un accès rapide depuis ton bureau</span>
+      <button class="pwa-hint-install-btn" onclick="toast('🚀 Prompt d\'installation !','ok');dismissHintDemo()">Installer</button>
+      <button class="pwa-hint-close" onclick="dismissHintDemo()">
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  `;
+  document.body.appendChild(hint);
+  requestAnimationFrame(() => requestAnimationFrame(() => hint.classList.add('pwa-hint-visible')));
+  setTimeout(dismissHintDemo, 10000);
+}
+
+function dismissHintDemo() {
+  const h = document.getElementById('pwa-desktop-hint');
+  if (!h) return;
+  h.classList.remove('pwa-hint-visible');
+  setTimeout(() => h?.remove(), 300);
+}
+
+/* ── 5. Success Modal ── */
+function showSuccessModalDemo() {
+  if (document.getElementById('pwa-success-modal')) return;
+  const modal = document.createElement('div');
+  modal.id        = 'pwa-success-modal';
+  modal.className = 'pwa-success-modal';
+  modal.innerHTML = `
+    <div class="pwa-success-inner">
+      <div class="pwa-success-icon">🎉</div>
+      <div class="pwa-success-title">Installation réussie !</div>
+      <div class="pwa-success-text">FacturaPro est maintenant installé. Tu peux l'ouvrir depuis ton écran d'accueil.</div>
+      <button class="pwa-success-btn" onclick="document.getElementById('pwa-success-modal').remove()">Super !</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('pwa-modal-visible')));
+  setTimeout(() => modal?.remove(), 6000);
+}
+
+/* ── Swipe to dismiss ── */
+function setupSwipe(el) {
+  let startY = 0, currentY = 0, dragging = false;
+  const handle = el.querySelector('.pwa-banner-drag-handle') ?? el;
+  handle.addEventListener('touchstart', e => { startY = e.touches[0].clientY; dragging = true; }, { passive: true });
+  handle.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    currentY = e.touches[0].clientY;
+    const d = Math.max(0, currentY - startY);
+    el.style.transform = `translateY(${d}px)`;
+    el.style.transition = 'none';
+  }, { passive: true });
+  handle.addEventListener('touchend', () => {
+    dragging = false;
+    el.style.transition = '';
+    if (currentY - startY > 80) dismissBannerDemo();
+    else el.style.transform = '';
+  });
+}
+
+/* ── Info panel ── */
+document.getElementById('info-standalone').textContent =
+  (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) ? 'oui ✓' : 'non';
+const dismissed = localStorage.getItem('fp_pwa_dismissed_until');
+document.getElementById('info-dismissed').textContent =
+  dismissed && new Date() < new Date(dismissed) ? 'oui' : 'non';
+</script>
+</body>
+</html>
