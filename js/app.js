@@ -1,119 +1,91 @@
 // ══════════════════════════════════════════════════════
-//  app.js  —  FacturaPro  v3
+//  app.js  —  FacturaPro  v4
 //
-//  FIXES :
-//  [1] Numérotation via transaction Firestore atomique
-//  [2] buildVenteData() sans toucher au compteur
-//  [3] Validation formulaire avant toute action
-//  [4] Anti double-clic (_saving guard)
-//  [5] FIX FIRESTORE INDEX : toutes les requêtes
-//      .where() + .orderBy() utilisent désormais
-//      un seul champ → pas besoin d'index composite
-//      Le tri se fait côté client (Array.sort)
-//  [6] Filtres historique : date début/fin + période
-//      rapide + type → tout côté client
-//  [7] Autocomplétion catalogue dans les lignes articles
-//  [8] Nouvelles vues câblées (catalogue, crédits)
-//  [9] Badge crédits en cours dans la sidebar
+//  CORRECTIONS v4 (par rapport à v3) :
+//  [A] Utilitaires déplacés dans utils.js (global)
+//  [B] enablePersistence() activé → offline OK
+//  [C] step="1" sur prix (entier F CFA), step="0.001" qté
+//  [D] allVentes exposé globalement (window.allVentes)
+//      → credits.js réutilise le cache, zéro re-lecture
+//  [E] Listener hash URL → shortcuts PWA fonctionnels
+//  [F] Guard allProduits chargé avant autocomplete
+//  [G] Toutes dates converties via toDateObj() avant
+//      .toLocaleDateString() → plus de crash Timestamp
+//  [H] Sanitisation données client pour jsPDF
+//  [I] Gestion offline via enablePersistence()
 // ══════════════════════════════════════════════════════
 
 "use strict";
 
 // ─────────────────────────────────────────────────────
-//  ÉTAT GLOBAL
+//  ÉTAT GLOBAL (exposé sur window pour inter-modules)
 // ─────────────────────────────────────────────────────
-let currentUser  = null;
-let lignes       = [];
-let docType      = "facture";
-let entreprise   = {};
-let config       = {};
-let allVentes    = [];   // cache complet (rechargé à chaque ouverture historique)
-let _saving      = false;
+window.currentUser  = null;
+window.lignes       = [];
+window.docType      = "facture";
+window.entreprise   = {};
+window.config       = {};
+window.allVentes    = [];   // [FIX D] cache global partagé avec credits.js
+let _saving         = false;
+
+// Persistence activée dans firebase-config.js (avant utils.js)
 
 // ─────────────────────────────────────────────────────
-//  UTILITAIRES
+//  NAVIGATION — vues
 // ─────────────────────────────────────────────────────
 
-function toast(msg, type = "ok", dur = 3800) {
-  const el = document.getElementById("toast");
-  el.textContent   = msg;
-  el.className     = `toast ${type}`;
-  el.style.display = "block";
-  clearTimeout(el._t);
-  el._t = setTimeout(() => (el.style.display = "none"), dur);
-}
-
-function loader(show) {
-  document.getElementById("loader").classList.toggle("active", show);
-}
-
-function fmt(n) {
-  const dev = config.devise    || entreprise.devise || "F CFA";
-  const pos = config.devisePos || "after";
-  const num = Number(n || 0).toLocaleString("fr-FR");
-  return pos === "before" ? `${dev} ${num}` : `${num} ${dev}`;
-}
-
-function fmtDate(ts) {
-  if (!ts) return "—";
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleDateString("fr-FR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function escHtml(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function toDateObj(ts) {
-  if (!ts) return new Date(0);
-  return ts.toDate ? ts.toDate() : new Date(ts);
-}
-
-function genNumero(type, counter) {
-  const prefix = { facture: "FAC", recu: "REC", devis: "DEV" }[type] || "DOC";
-  const now = new Date();
-  const yy  = now.getFullYear().toString().slice(2);
-  const mm  = String(now.getMonth() + 1).padStart(2, "0");
-  return `${prefix}-${yy}${mm}-${String(counter).padStart(4, "0")}`;
-}
-
-function showView(id, btn) {
+window.showView = function showView(id, btn) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   const view = document.getElementById(`view-${id}`);
   if (view) view.classList.add("active");
   document.querySelectorAll(".sb-item").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
   const titles = {
-    dashboard: "Tableau de bord",
+    dashboard:        "Tableau de bord",
     "nouvelle-vente": "Nouvelle vente",
-    historique: "Historique des ventes",
-    credits: "Crédits & Ardoises",
-    catalogue: "Catalogue produits",
-    parametres: "Paramètres",
+    historique:       "Historique des ventes",
+    credits:          "Crédits & Ardoises",
+    catalogue:        "Catalogue produits",
+    parametres:       "Paramètres",
   };
   const el = document.getElementById("topbar-title");
-  if (el) el.textContent = titles[id] || id;
-  if (id === "dashboard") chargerDashboard();
-}
+  if (el) el.textContent = titles[id] ?? id;
+
+  // Déclencher les chargements selon la vue
+  if (id === "dashboard")        chargerDashboard();
+  if (id === "historique")       chargerHistorique();
+  if (id === "credits")          chargerCredits();
+  if (id === "catalogue")        chargerCatalogue();
+};
 
 // ─────────────────────────────────────────────────────
-//  [FIX 3] VALIDATION FORMULAIRE
+//  [FIX E] ROUTING HASH — shortcuts PWA
+//  /#nouvelle-vente, /#historique, etc.
+// ─────────────────────────────────────────────────────
+
+function handleHashRoute() {
+  const hash = window.location.hash.replace("#", "").trim();
+  const allowed = ["dashboard", "nouvelle-vente", "historique", "credits", "catalogue", "parametres"];
+  if (!hash || !allowed.includes(hash)) return;
+  const btn = document.querySelector(`.sb-item[data-view="${hash}"]`);
+  showView(hash, btn);
+}
+
+window.addEventListener("hashchange", handleHashRoute);
+
+// ─────────────────────────────────────────────────────
+//  VALIDATION FORMULAIRE
 // ─────────────────────────────────────────────────────
 
 function validerFormulaire() {
-  const lignesValides = lignes.filter(l =>
+  const lignesValides = window.lignes.filter(l =>
     l.des.trim() !== "" && l.prix > 0 && l.qte > 0
   );
   if (!lignesValides.length)
     return { ok: false, msg: "❌ Ajoute au moins un article avec une désignation et un prix." };
 
   const { total } = calcRecap();
-  if (total <= 0 && docType !== "devis")
+  if (total <= 0 && window.docType !== "devis")
     return { ok: false, msg: "❌ Le total de la vente doit être supérieur à zéro." };
 
   const mRecu = parseFloat(document.getElementById("v-montant-recu")?.value) || 0;
@@ -129,7 +101,7 @@ function validerFormulaire() {
 
 auth.onAuthStateChanged(user => {
   if (user) {
-    currentUser = user;
+    window.currentUser = user;
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     const el = document.getElementById("topbar-user");
@@ -137,13 +109,17 @@ auth.onAuthStateChanged(user => {
     chargerEntreprise();
     chargerConfig();
     chargerDashboard();
-    ajouterLigne();
-    // Enregistrer le Service Worker
+    // Initialiser le système POS cartes (défini dans index.html)
+    if (typeof posInit === "function") posInit();
+    updateBadgeCredits();
+    // Route initiale depuis le hash
+    handleHashRoute();
+    // PWA Service Worker
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(e => console.warn("SW:", e));
     }
   } else {
-    currentUser = null;
+    window.currentUser = null;
     document.getElementById("login-screen").classList.remove("hidden");
     document.getElementById("app").classList.add("hidden");
   }
@@ -155,7 +131,7 @@ async function seConnecter() {
   const errEl = document.getElementById("login-error");
   errEl.style.display = "none";
   if (!email || !pwd) {
-    errEl.textContent = "Remplis tous les champs.";
+    errEl.textContent   = "Remplis tous les champs.";
     errEl.style.display = "block";
     return;
   }
@@ -170,13 +146,14 @@ async function seConnecter() {
       "auth/invalid-credential": "Email ou mot de passe incorrect.",
       "auth/too-many-requests":  "Trop de tentatives. Réessaie plus tard.",
     };
-    errEl.textContent   = msgs[e.code] || e.message;
+    errEl.textContent   = msgs[e.code] ?? e.message;
     errEl.style.display = "block";
   }
   loader(false);
 }
 
-function seDeconnecter() { auth.signOut(); }
+window.seConnecter    = seConnecter;
+window.seDeconnecter  = () => auth.signOut();
 
 ["l-email", "l-pwd"].forEach(id => {
   document.getElementById(id)?.addEventListener("keydown", e => {
@@ -191,14 +168,21 @@ function seDeconnecter() { auth.signOut(); }
 async function chargerEntreprise() {
   try {
     const snap = await db.collection("settings").doc("entreprise").get();
-    if (snap.exists) { entreprise = snap.data(); remplirChampsEntreprise(); updatePreviewEntreprise(); }
+    if (snap.exists) {
+      window.entreprise = snap.data();
+      remplirChampsEntreprise();
+      updatePreviewEntreprise();
+    }
   } catch (e) { console.error("chargerEntreprise:", e); }
 }
 
 async function chargerConfig() {
   try {
     const snap = await db.collection("settings").doc("config").get();
-    if (snap.exists) { config = snap.data(); remplirChampsConfig(); }
+    if (snap.exists) {
+      window.config = snap.data();
+      remplirChampsConfig();
+    }
   } catch (e) { console.error("chargerConfig:", e); }
 }
 
@@ -210,69 +194,75 @@ function remplirChampsEntreprise() {
   };
   for (const [elId, key] of Object.entries(map)) {
     const el = document.getElementById(elId);
-    if (el) el.value = entreprise[key] || "";
+    if (el) el.value = window.entreprise[key] ?? "";
   }
   updateLogoPreview();
+  // Mettre à jour la prévisualisation latérale (définie dans index.html)
+  if (typeof updatePreviewEntreprise === "function") updatePreviewEntreprise();
 }
 
 function remplirChampsConfig() {
+  const cfg = window.config;
   const checkMap = {
-    "p-show-logo":"showLogo","p-show-company":"showCompany","p-show-date":"showDate",
-    "p-show-ref":"showRef","p-show-rendu":"showRendu","p-show-tva":"showTva","p-show-sign":"showSign",
+    "p-show-logo":    "showLogo",
+    "p-show-company": "showCompany",
+    "p-show-date":    "showDate",
+    "p-show-ref":     "showRef",
+    "p-show-rendu":   "showRendu",
+    "p-show-tva":     "showTva",
+    "p-show-sign":    "showSign",
   };
   for (const [elId, key] of Object.entries(checkMap)) {
     const el = document.getElementById(elId);
-    if (el) el.checked = config[key] !== false;
+    if (el) el.checked = cfg[key] !== false;
   }
-  if (config.tvaRate)   document.getElementById("p-tva-rate").value = config.tvaRate;
-  if (config.format)    setChipValue("format-chips",     config.format,    "p-format");
-  if (config.devisePos) setChipValue("devise-pos-chips", config.devisePos, "p-devise-pos");
+  if (cfg.tvaRate)   document.getElementById("p-tva-rate").value = cfg.tvaRate;
+  if (cfg.format)    setChipValue("format-chips",     cfg.format,    "p-format");
+  if (cfg.devisePos) setChipValue("devise-pos-chips", cfg.devisePos, "p-devise-pos");
 
   const textMap = { "p-header":"headerText","p-footer-thanks":"footerThanks","p-footer-legal":"footerLegal" };
   for (const [elId, key] of Object.entries(textMap)) {
     const el = document.getElementById(elId);
-    if (el && config[key]) el.value = config[key];
+    if (el && cfg[key]) el.value = cfg[key];
   }
-  const tvaOpt = document.getElementById("opt-tva");
-  if (tvaOpt) tvaOpt.checked = config.showTva || false;
 
   const tvaLbl = document.getElementById("tva-pct-label");
-  if (tvaLbl) tvaLbl.textContent = `Taux : ${config.tvaRate || 18} %`;
-  const tvaRate = document.getElementById("r-tva-rate");
-  if (tvaRate) tvaRate.textContent = config.tvaRate || 18;
+  if (tvaLbl) tvaLbl.textContent = `Taux : ${cfg.tvaRate ?? 18} %`;
 
-  const dev = config.devise || entreprise.devise || "F CFA";
+  const dev = cfg.devise ?? window.entreprise.devise ?? "F CFA";
   ["stat-devise","stat-devise2"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = dev;
   });
 }
 
-function updateLogoPreview() {
+window.updateLogoPreview = function updateLogoPreview() {
   const url  = document.getElementById("p-logo-url")?.value.trim();
   const wrap = document.getElementById("logo-preview-wrap");
   if (!wrap) return;
-  wrap.innerHTML = url ? `<img src="${url}" onerror="this.parentNode.innerHTML='🏪'">` : "🏪";
-}
+  wrap.innerHTML = url
+    ? `<img src="${escHtml(url)}" alt="Logo" onerror="this.parentNode.innerHTML='🏪'">`
+    : "🏪";
+};
 
-function updatePreviewEntreprise() {
-  const nom = document.getElementById("p-nom")?.value     || entreprise.nom     || "Nom entreprise";
-  const tel = document.getElementById("p-tel")?.value     || entreprise.tel     || "";
-  const em  = document.getElementById("p-email")?.value   || entreprise.email   || "";
-  const adr = document.getElementById("p-adresse")?.value || entreprise.adresse || "";
+window.updatePreviewEntreprise = function updatePreviewEntreprise() {
+  const nom = document.getElementById("p-nom")?.value     ?? window.entreprise.nom     ?? "Nom entreprise";
+  const tel = document.getElementById("p-tel")?.value     ?? window.entreprise.tel     ?? "";
+  const em  = document.getElementById("p-email")?.value   ?? window.entreprise.email   ?? "";
+  const adr = document.getElementById("p-adresse")?.value ?? window.entreprise.adresse ?? "";
   const nomEl  = document.getElementById("prev-nom");
   const infoEl = document.getElementById("prev-info");
   if (nomEl)  nomEl.textContent = nom;
   if (infoEl) infoEl.innerHTML  = [tel, em, adr].filter(Boolean).join(" · ") || "Téléphone · Email · Adresse";
   updateLogoPreview();
-}
+};
 
 ["p-nom","p-tel","p-email","p-adresse"].forEach(id => {
   document.getElementById(id)?.addEventListener("input", updatePreviewEntreprise);
 });
 
-async function sauvegarderEntreprise() {
-  const g = id => document.getElementById(id)?.value.trim() || "";
+window.sauvegarderEntreprise = async function sauvegarderEntreprise() {
+  const g = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
     nom:g("p-nom"),slogan:g("p-slogan"),tel:g("p-tel"),tel2:g("p-tel2"),
     email:g("p-email"),web:g("p-web"),adresse:g("p-adresse"),ville:g("p-ville"),
@@ -282,55 +272,65 @@ async function sauvegarderEntreprise() {
   loader(true);
   try {
     await db.collection("settings").doc("entreprise").set(data);
-    entreprise = data;
+    window.entreprise = data;
     updatePreviewEntreprise();
     toast("✅ Informations enregistrées !");
   } catch (e) { toast("Erreur : " + e.message, "err"); }
   loader(false);
-}
+};
 
-async function sauvegarderConfig() {
-  const chk = id => document.getElementById(id)?.checked;
-  const val = id => document.getElementById(id)?.value.trim() || "";
+window.sauvegarderConfig = async function sauvegarderConfig() {
+  const chk = id => document.getElementById(id)?.checked ?? false;
+  const val = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
-    format: val("p-format")||"thermal", devisePos:val("p-devise-pos")||"after",
-    devise: val("p-devise")||entreprise.devise||"F CFA",
-    showLogo:chk("p-show-logo"),showCompany:chk("p-show-company"),showDate:chk("p-show-date"),
-    showRef:chk("p-show-ref"),showRendu:chk("p-show-rendu"),showTva:chk("p-show-tva"),
-    tvaRate:parseFloat(val("p-tva-rate"))||18,showSign:chk("p-show-sign"),
-    headerText:val("p-header"),footerThanks:val("p-footer-thanks"),footerLegal:val("p-footer-legal"),
+    format:       val("p-format")    || "thermal",
+    devisePos:    val("p-devise-pos")|| "after",
+    devise:       val("p-devise")    || window.entreprise.devise || "F CFA",
+    showLogo:     chk("p-show-logo"),
+    showCompany:  chk("p-show-company"),
+    showDate:     chk("p-show-date"),
+    showRef:      chk("p-show-ref"),
+    showRendu:    chk("p-show-rendu"),
+    showTva:      chk("p-show-tva"),
+    tvaRate:      parseFloat(val("p-tva-rate")) || 18,
+    showSign:     chk("p-show-sign"),
+    headerText:   val("p-header"),
+    footerThanks: val("p-footer-thanks"),
+    footerLegal:  val("p-footer-legal"),
   };
   loader(true);
   try {
     await db.collection("settings").doc("config").set(data);
-    config = data;
+    window.config = data;
     remplirChampsConfig();
     toast("✅ Configuration enregistrée !");
   } catch (e) { toast("Erreur : " + e.message, "err"); }
   loader(false);
-}
+};
 
-async function changerMotDePasse() {
+window.changerMotDePasse = async function changerMotDePasse() {
   const p1 = document.getElementById("p-pwd-new")?.value;
   const p2 = document.getElementById("p-pwd-confirm")?.value;
-  if (!p1)           { toast("Saisis un nouveau mot de passe.", "err"); return; }
-  if (p1 !== p2)     { toast("Les mots de passe ne correspondent pas.", "err"); return; }
+  if (!p1)        { toast("Saisis un nouveau mot de passe.", "err"); return; }
+  if (p1 !== p2)  { toast("Les mots de passe ne correspondent pas.", "err"); return; }
   if (p1.length < 6) { toast("Mot de passe trop court (min 6).", "err"); return; }
   loader(true);
   try {
-    await currentUser.updatePassword(p1);
+    await window.currentUser.updatePassword(p1);
     toast("✅ Mot de passe mis à jour !");
-    ["p-pwd-new","p-pwd-confirm"].forEach(id => { const el = document.getElementById(id); if(el) el.value=""; });
+    ["p-pwd-new","p-pwd-confirm"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = "";
+    });
   } catch (e) { toast("Reconnecte-toi et réessaie.", "err"); }
   loader(false);
-}
+};
 
-function selectChip(btn, groupId, inputId) {
+window.selectChip = function selectChip(btn, groupId, inputId) {
   document.querySelectorAll(`#${groupId} .option-chip`).forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
   const el = document.getElementById(inputId);
   if (el) el.value = btn.dataset.val;
-}
+};
 
 function setChipValue(groupId, val, inputId) {
   document.querySelectorAll(`#${groupId} .option-chip`).forEach(b => {
@@ -341,93 +341,61 @@ function setChipValue(groupId, val, inputId) {
 }
 
 // ─────────────────────────────────────────────────────
-//  NOUVELLE VENTE — TYPE
+//  TYPE DE DOCUMENT
 // ─────────────────────────────────────────────────────
 
-function setDocType(type, btn) {
-  docType = type;
+window.setDocType = function setDocType(type, btn) {
+  window.docType = type;
   document.querySelectorAll(".doc-type-btn").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
+  btn?.classList.add("active");
   const el = document.getElementById("montant-recu-group");
   if (el) el.style.display = type === "devis" ? "none" : "";
-}
+};
 
 // ─────────────────────────────────────────────────────
-//  LIGNES ARTICLES + AUTOCOMPLÉTION CATALOGUE [FIX 7]
+//  LIGNES ARTICLES
+//  [FIX C] step="1" pour prix entier, step="0.001" pour qté
+//  [FIX F] Guard allProduits avant autocomplete
 // ─────────────────────────────────────────────────────
 
-function ajouterLigne() {
-  lignes.push({ id: Date.now(), des: "", qte: 1, prix: 0, remise: 0 });
-  renderLignes();
-}
+// ─────────────────────────────────────────────────────
+//  LIGNES — Le nouveau système POS cartes (index.html)
+//  gère window.lignes directement via _pcSyncLignes().
+//  Ces fonctions sont conservées comme stubs de compatibilité.
+// ─────────────────────────────────────────────────────
 
-function renderLignes() {
-  const tbody = document.getElementById("lignes-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  lignes.forEach((l, i) => {
-    const total = l.qte * l.prix * (1 - l.remise / 100);
-    const tr    = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="td-des">
-        <input type="text" value="${escHtml(l.des)}" placeholder="Désignation…"
-          id="ligne-des-${l.id}" oninput="lignes[${i}].des=this.value"
-          style="min-width:140px;">
-      </td>
-      <td><input type="number" value="${l.qte}" min="0.01" step="any" style="width:66px;"
-        oninput="lignes[${i}].qte=parseFloat(this.value)||0;calcLigne(${i})"></td>
-      <td><input type="number" value="${l.prix}" min="0" step="any" style="width:106px;"
-        oninput="lignes[${i}].prix=parseFloat(this.value)||0;calcLigne(${i})"></td>
-      <td><input type="number" value="${l.remise}" min="0" max="100" style="width:52px;"
-        oninput="lignes[${i}].remise=parseFloat(this.value)||0;calcLigne(${i})"></td>
-      <td><div class="ligne-total" id="lt-${l.id}">${Number(total).toLocaleString("fr-FR")}</div></td>
-      <td>${lignes.length > 1
-        ? `<button class="btn-rm-ligne" onclick="supprimerLigne(${i})">
-             <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-               <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-             </svg></button>`
-        : ""}</td>`;
-    tbody.appendChild(tr);
+window.ajouterLigne = function ajouterLigne() {
+  // No-op : les cartes POS dans index.html gèrent les lignes
+  if (typeof posAddCard === "function") posAddCard();
+};
 
-    // [FIX 7] Brancher l'autocomplétion si le catalogue est chargé
-    const input = document.getElementById(`ligne-des-${l.id}`);
-    if (input && typeof setupAutocompleteLigne === "function") {
-      setupAutocompleteLigne(input, i);
-    }
-  });
-  calcRecap();
-}
+window.calcLigne = function calcLigne(i) {
+  // No-op : calcul géré par _pcCalc() dans index.html
+};
 
-function calcLigne(i) {
-  const l  = lignes[i];
-  const t  = l.qte * l.prix * (1 - l.remise / 100);
-  const el = document.getElementById(`lt-${l.id}`);
-  if (el) el.textContent = Number(t).toLocaleString("fr-FR");
-  calcRecap();
-}
-
-function supprimerLigne(i) {
-  lignes.splice(i, 1);
-  renderLignes();
-}
+window.supprimerLigne = function supprimerLigne(i) {
+  // No-op : suppression gérée par posDelCard() dans index.html
+};
 
 // ─────────────────────────────────────────────────────
 //  CALCUL RÉCAPITULATIF
 // ─────────────────────────────────────────────────────
 
-function calcRecap() {
-  const dev      = config.devise    || entreprise.devise || "F CFA";
-  const pos      = config.devisePos || "after";
+window.calcRecap = function calcRecap() {
+  const cfg      = window.config;
+  const ent      = window.entreprise;
+  const dev      = cfg.devise    ?? ent.devise ?? "F CFA";
+  const pos      = cfg.devisePos ?? "after";
   const fmtLocal = n => {
-    const s = Number(n || 0).toLocaleString("fr-FR");
-    return pos === "before" ? `${dev} ${s}` : `${s} ${dev}`;
+    const s = Math.round(Number(n ?? 0)).toLocaleString("fr-FR");
+    return pos === "before" ? `${dev}\u00A0${s}` : `${s}\u00A0${dev}`;
   };
 
   const remisePct = parseFloat(document.getElementById("opt-remise")?.value) || 0;
   const applyTva  = document.getElementById("opt-tva")?.checked || false;
-  const tvaRate   = parseFloat(document.getElementById("p-tva-rate")?.value || config.tvaRate || 18);
+  const tvaRate   = parseFloat(document.getElementById("p-tva-rate")?.value ?? cfg.tvaRate ?? 18);
 
-  const ht       = lignes.reduce((acc, l) => acc + l.qte * l.prix * (1 - l.remise / 100), 0);
+  const ht       = window.lignes.reduce((acc, l) => acc + l.qte * l.prix * (1 - l.remise / 100), 0);
   const remiseMt = ht * remisePct / 100;
   const base     = ht - remiseMt;
   const tvaMt    = applyTva ? base * tvaRate / 100 : 0;
@@ -444,41 +412,44 @@ function calcRecap() {
   show("r-remise-row", remisePct > 0);
 
   const mRecu = parseFloat(document.getElementById("v-montant-recu")?.value) || 0;
-  if (mRecu > 0 && docType !== "devis") {
+  if (mRecu > 0 && window.docType !== "devis") {
     show("r-rendu-row", true);
     const rendu   = mRecu - total;
     const renduEl = document.getElementById("r-rendu");
-    if (renduEl) { renduEl.textContent = fmtLocal(rendu); renduEl.style.color = rendu < 0 ? "var(--red)" : "var(--green)"; }
+    if (renduEl) {
+      renduEl.textContent = fmtLocal(rendu);
+      renduEl.style.color = rendu < 0 ? "var(--red)" : "var(--green)";
+    }
   } else {
     show("r-rendu-row", false);
   }
 
   return { ht, remiseMt, tvaMt, total, tvaRate, remise: remisePct, applyTva };
-}
+};
 
 // ─────────────────────────────────────────────────────
-//  [FIX 2] BUILD VENTE — sans toucher au compteur
+//  BUILD VENTE DATA
 // ─────────────────────────────────────────────────────
 
 function buildVenteData() {
   const { ht, remiseMt, tvaMt, total, tvaRate, remise, applyTva } = calcRecap();
   return {
-    type:        docType,
-    numero:      null,            // attribué par persisterVente()
-    date:        new Date(),
+    type:    window.docType,
+    numero:  null, // attribué par persisterVente()
+    date:    new Date(),
     client: {
-      nom:     document.getElementById("v-client-nom")?.value.trim()     || "",
-      tel:     document.getElementById("v-client-tel")?.value.trim()     || "",
-      email:   document.getElementById("v-client-email")?.value.trim()   || "",
-      adresse: document.getElementById("v-client-adresse")?.value.trim() || "",
+      nom:     document.getElementById("v-client-nom")?.value.trim()     ?? "",
+      tel:     document.getElementById("v-client-tel")?.value.trim()     ?? "",
+      email:   document.getElementById("v-client-email")?.value.trim()   ?? "",
+      adresse: document.getElementById("v-client-adresse")?.value.trim() ?? "",
     },
-    lignes:      lignes.map(l => ({ ...l })),
-    paiement:    document.getElementById("v-paiement")?.value || "especes",
+    lignes:      window.lignes.map(l => ({ ...l })),
+    paiement:    document.getElementById("v-paiement")?.value ?? "especes",
     montantRecu: parseFloat(document.getElementById("v-montant-recu")?.value) || 0,
-    note:        document.getElementById("v-note")?.value.trim() || "",
+    note:        document.getElementById("v-note")?.value.trim() ?? "",
     ht, remiseMt, tvaMt, total, tvaRate, remise, applyTva,
-    devise:    config.devise    || entreprise.devise || "F CFA",
-    devisePos: config.devisePos || "after",
+    devise:    window.config.devise    ?? window.entreprise.devise ?? "F CFA",
+    devisePos: window.config.devisePos ?? "after",
   };
 }
 
@@ -486,64 +457,67 @@ function buildVenteData() {
 //  ACTIONS VENTE
 // ─────────────────────────────────────────────────────
 
-async function actionImprimer() {
+window.actionImprimer = async function actionImprimer() {
   const v = validerFormulaire();
   if (!v.ok) { toast(v.msg, "err"); return; }
   if (_saving) { toast("Sauvegarde en cours…", "info"); return; }
-  const data  = buildVenteData();
-  const saved = await persisterVente(data);
+  const saved = await persisterVente(buildVenteData());
   if (!saved) return;
   try {
-    imprimerDocument(saved, entreprise, config);
+    // [FIX G] date déjà un objet Date dans saved
+    imprimerDocument(saved, window.entreprise, window.config);
     setTimeout(() => toast("🖨️ Dialogue d'impression ouvert"), 400);
   } catch (e) { toast("Erreur impression : " + e.message, "err"); }
-}
+};
 
-async function actionGenererPDF(fromModal, venteDataOverride) {
+window.actionGenererPDF = async function actionGenererPDF(fromModal, venteDataOverride) {
   if (venteDataOverride) {
-    try { const nom = genererPDF(venteDataOverride, entreprise, config); toast(`📥 PDF prêt : ${nom}`); }
+    try {
+      const nom = genererPDF(venteDataOverride, window.entreprise, window.config);
+      toast(`📥 PDF prêt : ${nom}`);
+    }
     catch (e) { toast("Erreur PDF : " + e.message, "err"); }
     return;
   }
   const v = validerFormulaire();
   if (!v.ok) { toast(v.msg, "err"); return; }
   if (_saving) { toast("Sauvegarde en cours…", "info"); return; }
-  const data  = buildVenteData();
-  const saved = await persisterVente(data);
+  const saved = await persisterVente(buildVenteData());
   if (!saved) return;
-  try { const nom = genererPDF(saved, entreprise, config); toast(`📥 PDF prêt : ${nom}`); }
+  try {
+    const nom = genererPDF(saved, window.entreprise, window.config);
+    toast(`📥 PDF prêt : ${nom}`);
+  }
   catch (e) { toast("Erreur PDF : " + e.message, "err"); }
-}
+};
 
-async function sauvegarderSeulement() {
+window.sauvegarderSeulement = async function sauvegarderSeulement() {
   const v = validerFormulaire();
   if (!v.ok) { toast(v.msg, "err"); return; }
   if (_saving) { toast("Sauvegarde en cours…", "info"); return; }
   await persisterVente(buildVenteData());
-}
+};
 
-function resetForm() {
+window.resetForm = function resetForm() {
   ["v-client-nom","v-client-tel","v-client-email","v-client-adresse",
    "v-note","v-montant-recu","opt-remise"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
   const tvaEl = document.getElementById("opt-tva");
-  if (tvaEl) tvaEl.checked = config.showTva || false;
-  lignes = [];
-  ajouterLigne();
+  if (tvaEl) tvaEl.checked = window.config.showTva ?? false;
+  window.lignes = [];
+  // Le système POS cartes (index.html inline) override cette fonction
+  // et réinitialise ses propres cartes. Ici on reset juste le type et le récap.
   setDocType("facture", document.querySelector(".doc-type-btn"));
   calcRecap();
-}
+};
 
 // ─────────────────────────────────────────────────────
-//  [FIX 1] PERSISTANCE — TRANSACTION FIRESTORE ATOMIQUE
-//  [FIX 5] Requête simple sur un seul champ (uid)
-//           → pas d'index composite requis
-//           Le tri par date est fait côté client
+//  PERSISTANCE — TRANSACTION FIRESTORE ATOMIQUE
 // ─────────────────────────────────────────────────────
 
 async function persisterVente(data) {
-  if (!currentUser) { toast("Non connecté.", "err"); return null; }
+  if (!window.currentUser) { toast("Non connecté.", "err"); return null; }
   _saving = true;
   loader(true);
   let savedData = null;
@@ -553,7 +527,7 @@ async function persisterVente(data) {
 
     await db.runTransaction(async transaction => {
       const counterSnap = await transaction.get(counterRef);
-      const currentVal  = counterSnap.exists ? (counterSnap.data().val || 0) : 0;
+      const currentVal  = counterSnap.exists ? (counterSnap.data().val ?? 0) : 0;
       const newVal      = currentVal + 1;
       const numero      = genNumero(data.type, newVal);
 
@@ -561,7 +535,7 @@ async function persisterVente(data) {
         ...data,
         numero,
         date:      firebase.firestore.Timestamp.fromDate(data.date),
-        uid:       currentUser.uid,
+        uid:       window.currentUser.uid,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -572,6 +546,8 @@ async function persisterVente(data) {
     });
 
     toast("✅ Vente enregistrée !");
+    // [FIX D] Mettre à jour le cache global
+    window.allVentes = [{ ...savedData, date: firebase.firestore.Timestamp.fromDate(data.date) }, ...window.allVentes];
     chargerDashboard();
     updateBadgeCredits();
   } catch (e) {
@@ -587,23 +563,21 @@ async function persisterVente(data) {
 
 // ─────────────────────────────────────────────────────
 //  DASHBOARD
-//  [FIX 5] Requête sur uid uniquement → tri client
 // ─────────────────────────────────────────────────────
 
 async function chargerDashboard() {
-  if (!currentUser) return;
+  if (!window.currentUser) return;
   try {
-    // ✅ UN SEUL .where() → pas d'index composite nécessaire
     const snap = await db.collection("ventes")
-      .where("uid", "==", currentUser.uid)
+      .where("uid", "==", window.currentUser.uid)
       .get();
 
-    // Tri côté client par date décroissante
     const ventes = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => toDateObj(b.createdAt || b.date) - toDateObj(a.createdAt || a.date));
+      .sort((a, b) => toDateObj(b.createdAt ?? b.date) - toDateObj(a.createdAt ?? a.date));
 
-    allVentes = ventes;
+    // [FIX D] Mettre à jour le cache global partagé
+    window.allVentes = ventes;
 
     const now       = new Date();
     const debutJour = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -612,15 +586,15 @@ async function chargerDashboard() {
     let nJour = 0, caJour = 0, nMois = 0, caMois = 0;
     ventes.forEach(v => {
       const d = toDateObj(v.date);
-      if (d >= debutJour) { nJour++; caJour += v.total || 0; }
-      if (d >= debutMois) { nMois++; caMois += v.total || 0; }
+      if (d >= debutJour) { nJour++; caJour += v.total ?? 0; }
+      if (d >= debutMois) { nMois++; caMois += v.total ?? 0; }
     });
 
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set("stat-jour",    nJour);
     set("stat-mois",    nMois);
-    set("stat-ca-jour", Number(caJour).toLocaleString("fr-FR"));
-    set("stat-ca-mois", Number(caMois).toLocaleString("fr-FR"));
+    set("stat-ca-jour", Math.round(caJour).toLocaleString("fr-FR"));
+    set("stat-ca-mois", Math.round(caMois).toLocaleString("fr-FR"));
 
     renderRecentList(ventes.slice(0, 8));
     updateBadgeCredits();
@@ -628,7 +602,7 @@ async function chargerDashboard() {
 }
 
 function renderRecentList(ventes) {
-  const tbody = document.getElementById("dash-recent-list");
+  const tbody   = document.getElementById("dash-recent-list");
   if (!tbody) return;
   const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
   if (!ventes.length) {
@@ -637,9 +611,9 @@ function renderRecentList(ventes) {
   }
   tbody.innerHTML = ventes.map(v => `
     <tr>
-      <td class="mono">${escHtml(v.numero || "—")}</td>
-      <td>${escHtml(v.client?.nom || "") || '<em style="color:var(--ink-muted)">Anonyme</em>'}</td>
-      <td><span class="badge badge-${v.type || "facture"}">${typeLbl[v.type] || v.type}</span></td>
+      <td class="mono">${escHtml(v.numero ?? "—")}</td>
+      <td>${escHtml(v.client?.nom ?? "") || '<em style="color:var(--ink-muted)">Anonyme</em>'}</td>
+      <td><span class="badge badge-${v.type ?? "facture"}">${typeLbl[v.type] ?? v.type}</span></td>
       <td class="mono">${fmt(v.total)}</td>
       <td style="color:var(--ink-muted);font-size:12px;">${fmtDate(v.date)}</td>
       <td>
@@ -654,53 +628,42 @@ function renderRecentList(ventes) {
 }
 
 // ─────────────────────────────────────────────────────
-//  [FIX 5+6] HISTORIQUE — requête simple + filtres client
+//  HISTORIQUE
 // ─────────────────────────────────────────────────────
 
-async function chargerHistorique() {
-  if (!currentUser) return;
+window.chargerHistorique = async function chargerHistorique() {
+  if (!window.currentUser) return;
   loader(true);
   try {
-    // ✅ UN SEUL .where() → zero index composite
     const snap = await db.collection("ventes")
-      .where("uid", "==", currentUser.uid)
+      .where("uid", "==", window.currentUser.uid)
       .get();
 
-    allVentes = snap.docs
+    window.allVentes = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => toDateObj(b.createdAt || b.date) - toDateObj(a.createdAt || a.date));
+      .sort((a, b) => toDateObj(b.createdAt ?? b.date) - toDateObj(a.createdAt ?? a.date));
 
-    filtrerHistorique(); // applique tous les filtres actifs
+    filtrerHistorique();
   } catch (e) { toast("Erreur chargement : " + e.message, "err"); }
   loader(false);
-}
+};
 
-/**
- * [FIX 6] Filtre complet côté client :
- *   - texte (N°, client, tél)
- *   - type (facture/reçu/devis)
- *   - date début / date fin
- *   - période rapide (today/week/month/lastmonth)
- */
-function filtrerHistorique() {
-  const q         = (document.getElementById("hist-search")?.value || "").toLowerCase().trim();
-  const typeF     = document.getElementById("hist-type-filter")?.value || "";
-  const dateDebut = document.getElementById("hist-date-debut")?.value || "";
-  const dateFin   = document.getElementById("hist-date-fin")?.value   || "";
+window.filtrerHistorique = function filtrerHistorique() {
+  const q         = (document.getElementById("hist-search")?.value ?? "").toLowerCase().trim();
+  const typeF     = document.getElementById("hist-type-filter")?.value ?? "";
+  const dateDebut = document.getElementById("hist-date-debut")?.value ?? "";
+  const dateFin   = document.getElementById("hist-date-fin")?.value   ?? "";
 
-  let result = allVentes;
+  let result = window.allVentes;
 
-  // Texte
   if (q) result = result.filter(v =>
-    (v.numero      || "").toLowerCase().includes(q) ||
-    (v.client?.nom || "").toLowerCase().includes(q) ||
-    (v.client?.tel || "").toLowerCase().includes(q)
+    (v.numero      ?? "").toLowerCase().includes(q) ||
+    (v.client?.nom ?? "").toLowerCase().includes(q) ||
+    (v.client?.tel ?? "").toLowerCase().includes(q)
   );
 
-  // Type
   if (typeF) result = result.filter(v => v.type === typeF);
 
-  // Dates
   if (dateDebut) {
     const d0 = new Date(dateDebut + "T00:00:00");
     result = result.filter(v => toDateObj(v.date) >= d0);
@@ -712,14 +675,13 @@ function filtrerHistorique() {
 
   renderHistorique(result);
   updateTotalBar(result);
-}
+};
 
-function rechercherHistorique(q) {
+window.rechercherHistorique = function rechercherHistorique() {
   filtrerHistorique();
-}
+};
 
-/** Période rapide — met à jour les date inputs puis filtre */
-function setPeriode(periode, btn) {
+window.setPeriode = function setPeriode(periode, btn) {
   document.querySelectorAll(".chip[data-periode]").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
 
@@ -729,33 +691,27 @@ function setPeriode(periode, btn) {
 
   const debutInput = document.getElementById("hist-date-debut");
   const finInput   = document.getElementById("hist-date-fin");
-
   if (!debutInput || !finInput) return;
 
   if (!periode) {
-    debutInput.value = "";
-    finInput.value   = "";
+    debutInput.value = ""; finInput.value = "";
   } else if (periode === "today") {
-    debutInput.value = toISO(now);
-    finInput.value   = toISO(now);
+    debutInput.value = toISO(now); finInput.value = toISO(now);
   } else if (periode === "week") {
     const d7 = new Date(now); d7.setDate(d7.getDate() - 6);
-    debutInput.value = toISO(d7);
-    finInput.value   = toISO(now);
+    debutInput.value = toISO(d7); finInput.value = toISO(now);
   } else if (periode === "month") {
     debutInput.value = toISO(new Date(now.getFullYear(), now.getMonth(), 1));
     finInput.value   = toISO(now);
   } else if (periode === "lastmonth") {
-    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lm  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lme = new Date(now.getFullYear(), now.getMonth(), 0);
-    debutInput.value = toISO(lm);
-    finInput.value   = toISO(lme);
+    debutInput.value = toISO(lm); finInput.value = toISO(lme);
   }
-
   filtrerHistorique();
-}
+};
 
-function resetFiltresHistorique() {
+window.resetFiltresHistorique = function resetFiltresHistorique() {
   ["hist-search","hist-date-debut","hist-date-fin"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
@@ -765,18 +721,15 @@ function resetFiltresHistorique() {
     b.classList.toggle("active", b.dataset.periode === "");
   });
   filtrerHistorique();
-}
+};
 
-/** Barre de total en bas du tableau */
 function updateTotalBar(ventes) {
-  const bar  = document.getElementById("hist-total-bar");
-  const lbl  = document.getElementById("hist-total-label");
-  const val  = document.getElementById("hist-total-val");
+  const bar = document.getElementById("hist-total-bar");
+  const lbl = document.getElementById("hist-total-label");
+  const val = document.getElementById("hist-total-val");
   if (!bar || !lbl || !val) return;
-
   if (!ventes.length) { bar.style.display = "none"; return; }
-
-  const total = ventes.reduce((s, v) => s + (v.total || 0), 0);
+  const total = ventes.reduce((s, v) => s + (v.total ?? 0), 0);
   bar.style.display = "flex";
   lbl.textContent   = `${ventes.length} document${ventes.length > 1 ? "s" : ""} affiché${ventes.length > 1 ? "s" : ""}`;
   val.textContent   = fmt(total);
@@ -798,10 +751,10 @@ function renderHistorique(ventes) {
 
   tbody.innerHTML = ventes.map(v => `
     <tr>
-      <td class="mono">${escHtml(v.numero || "—")}</td>
-      <td>${escHtml(v.client?.nom || "") || '<span style="color:var(--ink-muted)">—</span>'}</td>
-      <td><span class="badge badge-${v.type || "facture"}">${typeLbl[v.type] || v.type}</span></td>
-      <td style="font-size:12px;">${pmodes[v.paiement] || v.paiement || "—"}</td>
+      <td class="mono">${escHtml(v.numero ?? "—")}</td>
+      <td>${escHtml(v.client?.nom ?? "") || '<span style="color:var(--ink-muted)">—</span>'}</td>
+      <td><span class="badge badge-${v.type ?? "facture"}">${typeLbl[v.type] ?? v.type}</span></td>
+      <td style="font-size:12px;">${pmodes[v.paiement] ?? v.paiement ?? "—"}</td>
       <td class="mono" style="font-weight:600;">${fmt(v.total)}</td>
       <td style="color:var(--ink-muted);font-size:12px;">${fmtDate(v.date)}</td>
       <td>
@@ -823,159 +776,78 @@ function renderHistorique(ventes) {
     </tr>`).join("");
 }
 
-async function supprimerVente(id) {
+window.supprimerVente = async function supprimerVente(id) {
   if (!confirm("Supprimer cette vente définitivement ?")) return;
   loader(true);
   try {
     await db.collection("ventes").doc(id).delete();
-    allVentes = allVentes.filter(v => v.id !== id);
+    window.allVentes = window.allVentes.filter(v => v.id !== id);
     filtrerHistorique();
     chargerDashboard();
     toast("Vente supprimée.");
   } catch (e) { toast("Erreur : " + e.message, "err"); }
   loader(false);
-}
+};
 
-function reimprimerVente(id) {
-  const v = allVentes.find(x => x.id === id);
+window.reimprimerVente = function reimprimerVente(id) {
+  const v = window.allVentes.find(x => x.id === id);
   if (!v) { toast("Vente introuvable.", "err"); return; }
   try {
-    imprimerDocument({ ...v, date: toDateObj(v.date) }, entreprise, config);
+    // [FIX G] Conversion Timestamp → Date avant impression
+    imprimerDocument({ ...v, date: toDateObj(v.date) }, window.entreprise, window.config);
     setTimeout(() => toast("🖨️ Dialogue d'impression ouvert"), 400);
   } catch (e) { toast("Erreur impression : " + e.message, "err"); }
-}
+};
 
-function retelechargerPDF(id) {
-  const v = allVentes.find(x => x.id === id);
+window.retelechargerPDF = function retelechargerPDF(id) {
+  const v = window.allVentes.find(x => x.id === id);
   if (!v) { toast("Vente introuvable.", "err"); return; }
   try {
-    const nom = genererPDF({ ...v, date: toDateObj(v.date) }, entreprise, config);
+    // [FIX G] Conversion Timestamp → Date avant PDF
+    const nom = genererPDF({ ...v, date: toDateObj(v.date) }, window.entreprise, window.config);
     toast(`📥 PDF : ${nom}`);
   } catch (e) { toast("Erreur PDF : " + e.message, "err"); }
-}
+};
 
 // ─────────────────────────────────────────────────────
-//  BADGE CRÉDITS — délégué à credits.js
-//  (évite une requête composite uid + paiement + orderBy)
-//  credits.js expose _updateBadgeCreditsSidebar()
-//  qu'il appelle après chargerCredits()
+//  BADGE CRÉDITS
+//  [FIX D] Réutilise window.allVentes — pas de re-lecture
 // ─────────────────────────────────────────────────────
 
-function updateBadgeCredits() {
-  // Si le module crédits est chargé et a déjà les données → utilise-les
-  if (typeof _updateBadgeCreditsSidebar === "function" && allCredits.length) {
-    _updateBadgeCreditsSidebar();
-    return;
-  }
-  // Sinon lecture légère : on prend les ventes déjà en cache (allVentes)
-  const nbEncours = allVentes.filter(v => v.paiement === "credit" && !v.solde).length;
-  const badge = document.getElementById("sb-credits-badge");
-  if (badge) {
-    badge.style.display = nbEncours > 0 ? "inline-block" : "none";
-    badge.textContent   = nbEncours > 9 ? "9+" : String(nbEncours);
-  }
-}
-
-// ─────────────────────────────────────────────────────
-//  MONTANT REÇU — boutons rapides + indicateur live
-//  Inspiré du blade Laravel (calculateChange / addToMontant)
-// ─────────────────────────────────────────────────────
-
-/**
- * [FIX] Indicateur rendu monnaie dans la vue Nouvelle Vente
- *  - Montant saisi = 0                   → masqué
- *  - Montant saisi > 0 < total           → ❌ rouge  "Insuffisant — il manque X"
- *  - Montant saisi = total (±1 centime)  → ✅ vert   "Montant exact"
- *  - Montant saisi > total               → 💚 vert   "Rendu : X"
- */
-function updateRenduVente() {
-  const indicator = document.getElementById("v-rendu-indicator");
-  if (!indicator) return;
-
-  const { total } = calcRecap();
-  const mRecu = parseFloat(document.getElementById("v-montant-recu")?.value) || 0;
-
-  if (mRecu <= 0) {
-    indicator.style.display = "none";
-    return;
-  }
-
-  indicator.style.display = "flex";
-  indicator.style.justifyContent = "space-between";
-  indicator.style.alignItems = "center";
-
-  if (mRecu < total - 0.01) {
-    // Insuffisant
-    const manque = total - mRecu;
-    indicator.innerHTML = `
-      <span>❌ Insuffisant</span>
-      <span style="font-family:'DM Mono',monospace;">−${fmt(manque)}</span>`;
-    indicator.style.background = "var(--red-bg)";
-    indicator.style.color      = "var(--red)";
-  } else if (Math.abs(mRecu - total) <= 0.01) {
-    // Exact
-    indicator.innerHTML = `<span>✅ Montant exact — pas de rendu</span>`;
-    indicator.style.background = "var(--green-bg)";
-    indicator.style.color      = "var(--green)";
-  } else {
-    // Rendu monnaie
-    const rendu = mRecu - total;
-    indicator.innerHTML = `
-      <span>💚 Rendu monnaie</span>
-      <span style="font-family:'DM Mono',monospace;font-size:14px;">${fmt(rendu)}</span>`;
-    indicator.style.background = "var(--green-bg)";
-    indicator.style.color      = "var(--green)";
-  }
-}
-
-/** Met le montant reçu égal au total exact */
-function setMontantExact() {
-  const { total } = calcRecap();
-  const input = document.getElementById("v-montant-recu");
-  if (!input) return;
-  input.value = Math.ceil(total); // arrondi entier supérieur
-  // Animation flash
-  input.style.transition = "background .15s";
-  input.style.background = "var(--green-bg)";
-  setTimeout(() => { input.style.background = ""; }, 300);
-  calcRecap();
-  updateRenduVente();
-}
-
-/** Ajoute un montant fixe au champ montant reçu */
-function addMontant(amount) {
-  const input = document.getElementById("v-montant-recu");
-  if (!input) return;
-  input.value = (parseFloat(input.value) || 0) + amount;
-  // Animation flash
-  input.style.transition = "background .15s";
-  input.style.background = "var(--copper-bg)";
-  setTimeout(() => { input.style.background = ""; }, 300);
-  calcRecap();
-  updateRenduVente();
-}
+window.updateBadgeCredits = function updateBadgeCredits() {
+  try {
+    const nbEncours = window.allVentes.filter(v =>
+      v.paiement === "credit" && !v.solde
+    ).length;
+    const badge = document.getElementById("sb-credits-badge");
+    if (badge) {
+      badge.style.display = nbEncours > 0 ? "inline-block" : "none";
+      badge.textContent   = nbEncours > 9 ? "9+" : String(nbEncours);
+    }
+  } catch (e) { console.warn("updateBadgeCredits:", e); }
+};
 
 // ─────────────────────────────────────────────────────
 //  MODAL DÉTAIL VENTE
 // ─────────────────────────────────────────────────────
 
-function ouvrirDetail(id) {
-  const v = allVentes.find(x => x.id === id);
+window.ouvrirDetail = function ouvrirDetail(id) {
+  const v = window.allVentes.find(x => x.id === id);
   if (!v) return;
 
   const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
   const pmodes  = { especes:"Espèces", mobile_money:"Mobile Money", virement:"Virement", cheque:"Chèque", credit:"Crédit" };
 
   document.getElementById("modal-detail-title").textContent =
-    `${typeLbl[v.type] || v.type} — ${v.numero || ""}`;
+    `${typeLbl[v.type] ?? v.type} — ${v.numero ?? ""}`;
 
-  const lignesHtml = (v.lignes || []).map(l => `
+  const lignesHtml = (v.lignes ?? []).map(l => `
     <tr>
-      <td style="padding:7px 10px;">${escHtml(l.des || "—")}</td>
+      <td style="padding:7px 10px;">${escHtml(l.des ?? "—")}</td>
       <td style="padding:7px 10px;text-align:center;">${l.qte}</td>
-      <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;">${Number(l.prix).toLocaleString("fr-FR")}</td>
+      <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;">${Math.round(l.prix).toLocaleString("fr-FR")}</td>
       <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;">
-        ${Number(l.qte * l.prix * (1 - (l.remise || 0) / 100)).toLocaleString("fr-FR")}
+        ${Math.round(l.qte * l.prix * (1 - (l.remise ?? 0) / 100)).toLocaleString("fr-FR")}
       </td>
     </tr>`).join("");
 
@@ -983,13 +855,13 @@ function ouvrirDetail(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div style="background:var(--bg);border-radius:8px;padding:12px;">
         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-muted);margin-bottom:5px;">Client</div>
-        <div style="font-weight:600;">${escHtml(v.client?.nom || "Anonyme")}</div>
-        <div style="font-size:12px;color:var(--ink-soft);">${escHtml(v.client?.tel || "")}</div>
+        <div style="font-weight:600;">${escHtml(v.client?.nom ?? "Anonyme")}</div>
+        <div style="font-size:12px;color:var(--ink-soft);">${escHtml(v.client?.tel ?? "")}</div>
         ${v.client?.email ? `<div style="font-size:12px;color:var(--ink-soft);">${escHtml(v.client.email)}</div>` : ""}
       </div>
       <div style="background:var(--bg);border-radius:8px;padding:12px;">
         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-muted);margin-bottom:5px;">Paiement</div>
-        <div style="font-weight:600;">${pmodes[v.paiement] || v.paiement || "—"}</div>
+        <div style="font-weight:600;">${pmodes[v.paiement] ?? v.paiement ?? "—"}</div>
         <div style="font-size:12px;color:var(--ink-soft);">${fmtDate(v.date)}</div>
       </div>
     </div>
@@ -1016,13 +888,14 @@ function ouvrirDetail(id) {
     ${v.note ? `<div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--ink-muted);"><strong>Note :</strong> ${escHtml(v.note)}</div>` : ""}
   `;
 
+  // [FIX G] Conversion Timestamp → Date avant impression/PDF
   const venteData = { ...v, date: toDateObj(v.date) };
   const printBtn  = document.getElementById("modal-print-btn");
   const pdfBtn    = document.getElementById("modal-pdf-btn");
   if (printBtn) {
     printBtn.style.display = "";
     printBtn.onclick = () => {
-      try { imprimerDocument(venteData, entreprise, config); setTimeout(() => toast("🖨️ Impression ouverte"), 400); }
+      try { imprimerDocument(venteData, window.entreprise, window.config); }
       catch (e) { toast("Erreur : " + e.message, "err"); }
     };
   }
@@ -1032,11 +905,11 @@ function ouvrirDetail(id) {
   }
 
   document.getElementById("modal-detail").classList.add("active");
-}
+};
 
-function fermerModal() {
+window.fermerModal = function fermerModal() {
   document.getElementById("modal-detail").classList.remove("active");
-}
+};
 
 document.getElementById("modal-detail")?.addEventListener("click", function(e) {
   if (e.target === this) fermerModal();
@@ -1046,14 +919,18 @@ document.getElementById("modal-detail")?.addEventListener("click", function(e) {
 //  EXPORT CSV
 // ─────────────────────────────────────────────────────
 
-function exporterExcel() {
-  const ventes = allVentes;
+window.exporterExcel = function exporterExcel() {
+  const ventes = window.allVentes;
   if (!ventes.length) { toast("Aucune donnée.", "info"); return; }
   const rows = ventes.map(v => ({
-    "Numéro":    v.numero || "", "Type":v.type || "",
-    "Client":    v.client?.nom || "", "Téléphone":v.client?.tel || "",
-    "Paiement":  v.paiement || "", "Total":v.total || 0,
-    "Date":      fmtDate(v.date), "Note":v.note || "",
+    "Numéro":   v.numero      ?? "",
+    "Type":     v.type        ?? "",
+    "Client":   v.client?.nom ?? "",
+    "Téléphone":v.client?.tel ?? "",
+    "Paiement": v.paiement    ?? "",
+    "Total":    v.total       ?? 0,
+    "Date":     fmtDate(v.date),
+    "Note":     v.note        ?? "",
   }));
   const headers = Object.keys(rows[0]);
   const csv = [
@@ -1063,8 +940,11 @@ function exporterExcel() {
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
-  a.href = url; a.download = `ventes_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  a.href     = url;
+  a.download = `ventes_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
   toast("✅ Export CSV téléchargé !");
-}
+};

@@ -1,5 +1,5 @@
 {
-  "name": "FacturaPro — Système de Facturation",
+  "name": "FacturaPro",
   "short_name": "FacturaPro",
   "description": "Système de facturation professionnel pour commerçants — Factures, Reçus, Devis",
   "start_url": "/",
@@ -12,49 +12,49 @@
   "categories": ["business", "finance", "productivity"],
   "icons": [
     {
-      "src": "/icons/icon-72.png",
+      "src": "icons/icon-72.png",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-96.png",
+      "src": "icons/icon-96.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-128.png",
+      "src": "icons/icon-128.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-144.png",
+      "src": "icons/icon-144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-152.png",
+      "src": "icons/icon-152.png",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-192.png",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-384.png",
+      "src": "icons/icon-384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -62,14 +62,14 @@
   ],
   "screenshots": [
     {
-      "src": "/icons/screenshot-desktop.png",
+      "src": "icons/screenshot-desktop.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
       "label": "Tableau de bord FacturaPro"
     },
     {
-      "src": "/icons/screenshot-mobile.png",
+      "src": "icons/screenshot-mobile.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
@@ -82,14 +82,14 @@
       "short_name": "Vente",
       "description": "Créer une nouvelle facture ou reçu",
       "url": "/#nouvelle-vente",
-      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+      "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }]
     },
     {
       "name": "Historique",
       "short_name": "Historique",
       "description": "Voir les ventes passées",
       "url": "/#historique",
-      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+      "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }]
     }
   ],
   "prefer_related_applications": false

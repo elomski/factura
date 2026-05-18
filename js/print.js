@@ -1,27 +1,48 @@
 // ══════════════════════════════════════════════════════
-//  print.js  —  FacturaPro
-//  Impression native via window.print()
-//  Génère un document HTML propre dans une iframe cachée
-//  → Compatible imprimantes Bluetooth, mobiles anciens
-//  → Idéal pour imprimer directement en boutique
+//  print.js  —  FacturaPro  v5
+//
+//  FIXES v5 :
+//  [1] BUG MONTANTS : toLocaleString("fr-FR") produit
+//      "\u202F" (espace fine insécable) que certains
+//      navigateurs/imprimantes n'affichent pas bien.
+//      SOLUTION : formatage manuel ASCII uniquement.
+//  [2] Design repris du template Blade :
+//      - inv-box gris pour N°/date/client
+//      - thead fond noir (#111) texte blanc
+//      - totaux avec bordure + fond selon type
+//      - rendu monnaie en vert (.t-rendu)
+//      - visas (signature vendeur)
+//  [3] Logo chargé depuis URL (Firebase Storage)
 // ══════════════════════════════════════════════════════
 
 /**
- * Lance l'impression native du navigateur pour une vente.
- * Injecte un document HTML complet dans une iframe cachée,
- * adapté au format papier configuré (thermal 80mm / A5 / A4).
+ * Formate un nombre sans toLocaleString pour éviter
+ * les caractères unicode non-ASCII (espace fine \u202F)
+ * qui cassent certaines imprimantes thermiques et navigateurs.
+ */
+function _pFmtNum(n) {
+  return String(Math.round(Number(n ?? 0)))
+    .replace(/\B(?=(\d{3})+(?!\d))/g, "\u0020");
+}
+
+/**
+ * Lance l'impression native (window.print()) via une iframe cachée.
+ * Design inspiré du template Blade (thermique / A5 / A4).
  *
- * @param {object} data       — objet vente complet (buildVenteData())
+ * @param {object} data       — objet vente, data.date = Date JS
  * @param {object} entreprise — infos entreprise
  * @param {object} config     — config documents
  */
 function imprimerDocument(data, entreprise, config) {
-  const fmt  = config.format || "thermal";
-  const dev  = config.devise || entreprise.devise || "F CFA";
-  const pos  = config.devisePos || "after";
+  const escH = window.escHtml;
 
-  const fmtAmt = (n) => {
-    const s = Number(n || 0).toLocaleString("fr-FR");
+  const fmt_   = config.format    || "thermal";
+  const dev    = config.devise    || entreprise.devise || "F CFA";
+  const pos    = config.devisePos || "after";
+
+  // Formatage montant — ASCII uniquement, pas de \u202F
+  const fmtAmt = n => {
+    const s = _pFmtNum(n);
     return pos === "before" ? `${dev} ${s}` : `${s} ${dev}`;
   };
 
@@ -34,86 +55,34 @@ function imprimerDocument(data, entreprise, config) {
     credit:       "À crédit",
   };
 
-  const dateStr = data.date
-    ? data.date.toLocaleDateString("fr-FR", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-        hour: "2-digit", minute: "2-digit",
-      })
-    : "";
+  // Date sécurisée
+  const dateObj = data.date instanceof Date ? data.date : toDateObj(data.date);
+  const dateStr = [
+    String(dateObj.getDate()).padStart(2, "0"),
+    String(dateObj.getMonth() + 1).padStart(2, "0"),
+    dateObj.getFullYear(),
+  ].join("/") + " " +
+    String(dateObj.getHours()).padStart(2, "0") + ":" +
+    String(dateObj.getMinutes()).padStart(2, "0");
 
-  // ── CSS selon le format ──
+  // CSS @page selon format
   const paperCSS = {
-    thermal: `
-      @page { size: 80mm auto; margin: 3mm 4mm; }
-      body   { max-width: 72mm; font-size: 9pt; }`,
-    a5: `
-      @page { size: A5 portrait; margin: 10mm; }
-      body  { max-width: 128mm; font-size: 10pt; }`,
-    a4: `
-      @page { size: A4 portrait; margin: 15mm; }
-      body  { max-width: 180mm; font-size: 11pt; }`,
-  }[fmt] || `@page { size: 80mm auto; margin: 3mm 4mm; } body { max-width: 72mm; font-size: 9pt; }`;
+    thermal: `@page { size: 80mm 297mm; margin: 2mm 3mm; } body { max-width: 74mm; font-size: 8px; }`,
+    a5:      `@page { size: A5 portrait; margin: 8mm; }    body { max-width: 140mm; font-size: 10px; }`,
+    a4:      `@page { size: A4 portrait; margin: 12mm; }   body { max-width: 186mm; font-size: 11px; }`,
+  }[fmt_] ?? `@page { size: 80mm 297mm; margin: 2mm 3mm; } body { max-width: 74mm; font-size: 8px; }`;
 
-  // ── Lignes articles ──
-  const lignesRows = (data.lignes || []).map((l, i) => {
-    const tot = l.qte * l.prix * (1 - (l.remise || 0) / 100);
-    return `
-      <tr class="${i % 2 === 0 ? "alt" : ""}">
-        <td class="td-des">${escH(l.des || `Article ${i + 1}`)}</td>
-        <td class="tc">${l.qte}</td>
-        <td class="tr">${Number(l.prix).toLocaleString("fr-FR")}</td>
-        ${config.showRef ? `<td class="tc">${l.remise > 0 ? l.remise + "%" : "—"}</td>` : ""}
-        <td class="tr bold">${Number(tot).toLocaleString("fr-FR")}</td>
-      </tr>`;
-  }).join("");
+  // Guard lignes
+  const lignes = Array.isArray(data.lignes) ? data.lignes : [];
 
-  // ── Totaux intermédiaires ──
-  let totsRows = "";
-  if (data.remiseMt > 0 || data.applyTva) {
-    totsRows += `
-      <tr class="tot-line">
-        <td colspan="${config.showRef ? "3" : "2"}" class="tr light">Sous-total HT</td>
-        <td class="tr light">${fmtAmt(data.ht)}</td>
-      </tr>`;
-  }
-  if (data.remiseMt > 0) {
-    totsRows += `
-      <tr class="tot-line">
-        <td colspan="${config.showRef ? "3" : "2"}" class="tr red">Remise (${data.remise}%)</td>
-        <td class="tr red">−${fmtAmt(data.remiseMt)}</td>
-      </tr>`;
-  }
-  if (data.applyTva) {
-    totsRows += `
-      <tr class="tot-line">
-        <td colspan="${config.showRef ? "3" : "2"}" class="tr light">TVA (${data.tvaRate}%)</td>
-        <td class="tr light">${fmtAmt(data.tvaMt)}</td>
-      </tr>`;
-  }
-
-  // ── Rendu monnaie ──
-  let renduBlock = "";
-  if (config.showRendu !== false && data.montantRecu > 0 && data.type !== "devis") {
-    const rendu = data.montantRecu - data.total;
-    renduBlock = `
-      <div class="rendu-block">
-        <div class="rendu-row">
-          <span>Montant reçu</span>
-          <span>${fmtAmt(data.montantRecu)}</span>
-        </div>
-        <div class="rendu-row ${rendu >= 0 ? "green" : "red"}">
-          <span><strong>Rendu monnaie</strong></span>
-          <span><strong>${fmtAmt(rendu)}</strong></span>
-        </div>
-      </div>`;
-  }
-
-  // ── Infos entreprise ──
+  // Logo
   const logoHtml = (config.showLogo !== false && entreprise.logoUrl)
-    ? `<img src="${entreprise.logoUrl}" class="logo" alt="Logo" onerror="this.style.display='none'">`
+    ? `<img src="${escH(entreprise.logoUrl)}" class="logo" alt="Logo"
+           onerror="this.style.display='none'">`
     : "";
 
-  const companyHtml = config.showCompany !== false ? `
+  // Infos entreprise
+  const companyHtml = (config.showCompany !== false) ? `
     <div class="company-name">${escH(entreprise.nom || "Mon Entreprise")}</div>
     ${entreprise.slogan ? `<div class="company-slogan">${escH(entreprise.slogan)}</div>` : ""}
     <div class="company-info">
@@ -125,257 +94,282 @@ function imprimerDocument(data, entreprise, config) {
         ].filter(Boolean).map(l => `<div>${escH(l)}</div>`).join("")}
     </div>` : "";
 
-  const fiscalHtml = (entreprise.rc || entreprise.nif) ? `
-    <div class="fiscal">
-      ${[entreprise.rc && `RC : ${entreprise.rc}`, entreprise.nif && `NIF : ${entreprise.nif}`]
-         .filter(Boolean).join(" &nbsp;|&nbsp; ")}
-    </div>` : "";
+  const fiscalStr = [
+    entreprise.rc  && `RC : ${entreprise.rc}`,
+    entreprise.nif && `NIF : ${entreprise.nif}`,
+  ].filter(Boolean).join(" &nbsp;|&nbsp; ");
 
-  // ── Signature ──
-  const signHtml = config.showSign ? `
-    <div class="signature-block">
-      <div class="sig-line"></div>
-      <div class="sig-label">Signature du vendeur</div>
-    </div>` : "";
-
-  // ── Colonne "Remise" dans le header ──
+  // Lignes articles HTML
   const thRef = config.showRef ? `<th class="tc">Rem%</th>` : "";
+  const lignesRows = lignes.map((l, i) => {
+    const tot = l.qte * l.prix * (1 - (l.remise ?? 0) / 100);
+    return `
+      <tr class="${i % 2 === 0 ? "" : "even"}">
+        <td>${escH(l.des || `Article ${i + 1}`)}</td>
+        <td class="tc">${l.qte}</td>
+        <td class="tr">${_pFmtNum(l.prix)}</td>
+        ${config.showRef ? `<td class="tc">${(l.remise ?? 0) > 0 ? l.remise + "%" : "—"}</td>` : ""}
+        <td class="tr bold">${_pFmtNum(tot)}</td>
+      </tr>`;
+  }).join("");
+
+  // Totaux intermédiaires
+  const cols = config.showRef ? "3" : "2";
+  let totsRows = "";
+  if ((data.remiseMt ?? 0) > 0 || data.applyTva) {
+    totsRows += `<tr class="t-row"><td colspan="${cols}" class="t-label">Total HT</td><td class="tr">${fmtAmt(data.ht)}</td></tr>`;
+  }
+  if ((data.remiseMt ?? 0) > 0) {
+    totsRows += `<tr class="t-row"><td colspan="${cols}" class="t-label t-rouge">Remise (${data.remise}%)</td><td class="tr t-rouge">&minus;${fmtAmt(data.remiseMt)}</td></tr>`;
+  }
+  if (data.applyTva) {
+    totsRows += `<tr class="t-row"><td colspan="${cols}" class="t-label">TVA (${data.tvaRate}%)</td><td class="tr">${fmtAmt(data.tvaMt)}</td></tr>`;
+  }
+
+  // Rendu monnaie
+  const showRendu = config.showRendu !== false && (data.montantRecu ?? 0) > 0 && data.type !== "devis";
+  let renduRows = "";
+  if (showRendu) {
+    const rendu = (data.montantRecu ?? 0) - (data.total ?? 0);
+    renduRows = `
+      <tr class="t-recu">
+        <td colspan="${cols}" class="t-label">Montant reçu</td>
+        <td class="tr">${fmtAmt(data.montantRecu)}</td>
+      </tr>
+      <tr class="t-rendu">
+        <td colspan="${cols}">Rendu monnaie</td>
+        <td class="tr bold">${fmtAmt(rendu)}</td>
+      </tr>`;
+  }
+
+  // Visa vendeur
+  const signHtml = config.showSign ? `
+    <div class="visas">
+      <div class="visa-cell">
+        <div class="visa-line"></div>
+        <div class="visa-lbl">Signature vendeur</div>
+      </div>
+    </div>` : "";
 
   // ── Document HTML complet ──
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${typeLbl[data.type] || "Document"} ${data.numero || ""}</title>
+  <title>${typeLbl[data.type] ?? "Document"} ${escH(data.numero ?? "")}</title>
   <style>
-    /* ── RESET ── */
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-
-    /* ── PAGE ── */
     ${paperCSS}
-
     body {
       font-family: Arial, Helvetica, sans-serif;
       color: #1a1a1a;
       background: #fff;
       margin: 0 auto;
-      line-height: 1.45;
+      line-height: 1.35;
     }
 
-    /* ── EN-TÊTE ── */
+    /* ── HEADER ── */
     .header {
       text-align: center;
-      padding-bottom: 5px;
-      margin-bottom: 6px;
-      border-bottom: 2px solid #b5622b;
+      padding-bottom: 2mm;
+      margin-bottom: 2mm;
+      border-bottom: 2px solid #111;
     }
     .logo {
-      max-width: 70px; max-height: 55px;
-      object-fit: contain; margin-bottom: 4px;
-      display: block; margin-left: auto; margin-right: auto;
+      max-width: 55px; max-height: 55px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 1.5mm;
     }
     .company-name {
       font-size: 1.25em; font-weight: 800;
       text-transform: uppercase; letter-spacing: .5px;
-      color: #1a1a1a;
     }
     .company-slogan {
-      font-size: .78em; font-style: italic; color: #666;
-      margin-top: 1px;
+      font-size: .8em; font-style: italic; color: #666; margin-top: 1px;
     }
-    .company-info div { font-size: .78em; color: #444; }
-    .fiscal {
-      font-size: .68em; color: #888;
-      margin-top: 3px;
-    }
+    .company-info div { font-size: .78em; color: #555; }
     .header-custom {
-      font-size: .78em; color: #666; margin-top: 4px;
-      font-style: italic;
+      font-size: .75em; color: #777; margin-top: 1.5mm; font-style: italic;
     }
 
-    /* ── TYPE + NUMÉRO ── */
-    .doc-header {
+    /* ── INV-BOX (inspiré .inv-box du Blade) ── */
+    .inv-box {
+      background: #f4f4f4;
+      padding: 2mm;
+      margin: 2mm 0;
+      border-radius: 1mm;
+    }
+    .inv-title {
       text-align: center;
-      margin: 8px 0 6px;
-    }
-    .doc-type {
-      font-size: 1.5em; font-weight: 900;
-      color: #b5622b; text-transform: uppercase;
+      font-size: 1.1em;
+      font-weight: 700;
+      text-transform: uppercase;
       letter-spacing: 2px;
+      margin-bottom: 1.5mm;
     }
-    .doc-num  { font-size: .85em; color: #444; margin-top: 2px; }
-    .doc-date { font-size: .78em; color: #888; margin-top: 1px; }
+    .inv-row {
+      display: flex;
+      justify-content: space-between;
+      padding: .4mm 0;
+      font-size: .9em;
+    }
+    .inv-label { color: #666; }
+    .inv-value { font-weight: 600; }
 
-    /* ── CLIENT ── */
-    .client-block {
-      background: #f9f6f2;
-      border-left: 3px solid #b5622b;
-      padding: 5px 7px;
-      margin: 6px 0;
-      border-radius: 0 4px 4px 0;
+    /* ── TABLE ARTICLES ── */
+    table { width: 100%; border-collapse: collapse; margin: 2mm 0; }
+    thead th {
+      background: #111;
+      color: #fff;
+      padding: 1.5mm;
+      font-size: .78em;
+      text-transform: uppercase;
+      letter-spacing: .3px;
     }
-    .client-label {
-      font-size: .65em; font-weight: 700;
-      letter-spacing: 1.5px; text-transform: uppercase;
-      color: #b5622b; margin-bottom: 2px;
+    tbody td {
+      padding: 1mm 1.5mm;
+      border-bottom: 1px solid #e5e5e5;
+      font-size: .92em;
     }
-    .client-name { font-weight: 700; font-size: .9em; }
-    .client-info { font-size: .78em; color: #555; }
-
-    /* ── SÉPARATEUR ── */
-    .sep {
-      border: none; border-top: 1px dashed #ccc;
-      margin: 6px 0;
-    }
-
-    /* ── TABLEAU ARTICLES ── */
-    table.articles {
-      width: 100%; border-collapse: collapse;
-      margin: 4px 0;
-    }
-    table.articles thead tr {
-      background: #1c1712; color: #fff;
-    }
-    table.articles thead th {
-      padding: 4px 5px;
-      font-size: .72em; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .5px;
-    }
-    table.articles td {
-      padding: 4px 5px; font-size: .82em;
-      border-bottom: 1px solid #ede8e0;
-      vertical-align: middle;
-    }
-    table.articles tr.alt td { background: #faf7f3; }
-
-    /* Alignements colonnes */
+    tbody tr.even td { background: #fafafa; }
     .tc { text-align: center; }
     .tr { text-align: right; }
-    .td-des { text-align: left; }
     .bold { font-weight: 700; }
-    .light { color: #666; }
-    .red   { color: #8b2020; }
-    .green { color: #2a6644; }
 
-    /* ── LIGNES TOTAUX (dans le tableau) ── */
-    tr.tot-line td {
-      padding: 3px 5px; font-size: .8em;
-      border: none; background: #f5f0ea;
+    /* ── TOTAUX (inspiré .totals du Blade) ── */
+    .totals {
+      border: 1px solid #111;
+      border-radius: 1mm;
+      overflow: hidden;
+      margin: 2mm 0;
+      width: 100%;
+      border-collapse: collapse;
     }
-
-    /* ── TOTAL FINAL ── */
-    .total-block {
-      background: #b5622b;
+    .totals td {
+      padding: 1mm 2mm;
+      font-size: .9em;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .totals tr:last-child td { border-bottom: none; }
+    .t-label { color: #666; }
+    .t-row td { background: #fff; }
+    /* Total final — fond noir */
+    .t-final td {
+      background: #111;
       color: #fff;
-      padding: 6px 8px;
-      display: flex; justify-content: space-between; align-items: center;
-      margin: 4px 0;
-      border-radius: 3px;
+      font-weight: 700;
+      font-size: 1.05em;
     }
-    .total-label { font-weight: 800; font-size: 1em; letter-spacing: 1px; }
-    .total-amount { font-weight: 900; font-size: 1.2em; }
-
-    /* ── RENDU MONNAIE ── */
-    .rendu-block {
-      border: 1px solid #ddd; border-radius: 3px;
-      overflow: hidden; margin: 4px 0;
-    }
-    .rendu-row {
-      display: flex; justify-content: space-between;
-      padding: 4px 8px; font-size: .82em;
-      border-bottom: 1px solid #eee;
-    }
-    .rendu-row:last-child { border-bottom: none; }
-    .rendu-row.green { background: #e8f4ee; color: #2a6644; }
-    .rendu-row.red   { background: #faeaea; color: #8b2020; }
+    .t-final .t-label { color: rgba(255,255,255,.8); }
+    /* Reçu — fond gris */
+    .t-recu td { background: #f5f5f5; }
+    /* Rendu — fond vert clair */
+    .t-rendu td { background: #e8f5e9; color: #2e7d32; font-weight: 700; }
+    /* Rouge remise */
+    .t-rouge { color: #8b2020; }
 
     /* ── PAIEMENT / NOTE ── */
     .paiement-line {
-      font-size: .8em; color: #555;
-      margin: 4px 0;
+      font-size: .82em; color: #444; margin: 1.5mm 0;
     }
     .note-block {
       font-size: .78em; color: #777; font-style: italic;
-      margin: 4px 0; padding: 4px 6px;
+      margin: 1.5mm 0; padding: .5mm 1mm;
       border-left: 2px solid #ddd;
     }
 
-    /* ── SIGNATURE ── */
-    .signature-block {
-      margin-top: 14px; padding-top: 6px;
+    /* ── VISAS (inspiré .visas du Blade) ── */
+    .visas {
+      display: table;
+      width: 100%;
+      margin-top: 3mm;
+      border-top: 1px solid #ddd;
+      padding-top: 2mm;
     }
-    .sig-line {
-      width: 45mm; height: 0;
-      border-top: 1px solid #1a1a1a;
-      margin-bottom: 3px;
+    .visa-cell {
+      display: table-cell;
+      width: 50%;
+      text-align: center;
     }
-    .sig-label { font-size: .72em; color: #888; }
+    .visa-line {
+      min-height: 8mm;
+      border-bottom: 1px solid #333;
+      margin: 0 auto 1mm;
+      width: 85%;
+    }
+    .visa-lbl {
+      font-size: .7em; color: #666; text-transform: uppercase;
+    }
 
-    /* ── PIED DE PAGE ── */
+    /* ── FOOTER ── */
     .footer {
-      margin-top: 10px; padding-top: 5px;
+      margin-top: 2mm;
+      padding-top: 1.5mm;
       border-top: 1px dashed #ccc;
       text-align: center;
     }
-    .footer-thanks {
-      font-weight: 700; font-size: .9em;
-      color: #b5622b; margin-bottom: 3px;
-    }
-    .footer-legal {
-      font-size: .68em; color: #999;
-      line-height: 1.5;
-    }
-    .footer-brand {
-      font-size: .6em; color: #ccc;
-      margin-top: 5px;
-    }
+    .f-thanks { font-weight: 700; font-size: .95em; color: #b5622b; margin-bottom: 1mm; }
+    .f-note   { font-size: .7em; color: #666; line-height: 1.3; }
+    .f-fiscal { font-size: .65em; color: #999; margin-top: 1mm; }
+    .f-brand  { font-size: .6em; color: #ccc; margin-top: 1mm; }
 
-    /* ── MASQUER À L'ÉCRAN (iframe invisible) ── */
+    /* ── PRINT ONLY ── */
     @media screen { body { visibility: hidden; } }
-
-    /* ── IMPRESSION ── */
-    @media print {
-      body        { visibility: visible; }
-      * { -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important; }
+    @media print  {
+      body { visibility: visible; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   </style>
 </head>
 <body>
 
-  <!-- EN-TÊTE ENTREPRISE -->
+  <!-- HEADER -->
   <div class="header">
     ${logoHtml}
     ${companyHtml}
-    ${fiscalHtml}
     ${config.headerText ? `<div class="header-custom">${escH(config.headerText)}</div>` : ""}
   </div>
 
-  <!-- TYPE + NUMÉRO -->
-  <div class="doc-header">
-    <div class="doc-type">${typeLbl[data.type] || "DOCUMENT"}</div>
-    <div class="doc-num">N° ${escH(data.numero || "")}</div>
-    ${config.showDate !== false ? `<div class="doc-date">${dateStr}</div>` : ""}
+  <!-- INV-BOX : type, numéro, date, client -->
+  <div class="inv-box">
+    <div class="inv-title">${typeLbl[data.type] ?? "DOCUMENT"}</div>
+    <div class="inv-row">
+      <span class="inv-label">N° Facture</span>
+      <span class="inv-value">${escH(data.numero ?? "")}</span>
+    </div>
+    ${config.showDate !== false ? `
+    <div class="inv-row">
+      <span class="inv-label">Date</span>
+      <span class="inv-value">${dateStr}</span>
+    </div>` : ""}
+    ${(data.client?.nom) ? `
+    <div class="inv-row">
+      <span class="inv-label">Client</span>
+      <span class="inv-value">${escH(data.client.nom)}</span>
+    </div>` : ""}
+    ${(data.client?.tel) ? `
+    <div class="inv-row">
+      <span class="inv-label">Tél.</span>
+      <span class="inv-value">${escH(data.client.tel)}</span>
+    </div>` : ""}
+    ${(data.client?.email) ? `
+    <div class="inv-row">
+      <span class="inv-label">Email</span>
+      <span class="inv-value">${escH(data.client.email)}</span>
+    </div>` : ""}
+    ${(data.client?.adresse) ? `
+    <div class="inv-row">
+      <span class="inv-label">Adresse</span>
+      <span class="inv-value">${escH(data.client.adresse)}</span>
+    </div>` : ""}
   </div>
 
-  <hr class="sep">
-
-  <!-- CLIENT -->
-  ${(data.client?.nom || data.client?.tel) ? `
-  <div class="client-block">
-    <div class="client-label">Client</div>
-    ${data.client.nom     ? `<div class="client-name">${escH(data.client.nom)}</div>`     : ""}
-    ${data.client.tel     ? `<div class="client-info">Tél : ${escH(data.client.tel)}</div>` : ""}
-    ${data.client.email   ? `<div class="client-info">${escH(data.client.email)}</div>`   : ""}
-    ${data.client.adresse ? `<div class="client-info">${escH(data.client.adresse)}</div>` : ""}
-  </div>` : ""}
-
   <!-- TABLEAU ARTICLES -->
-  <table class="articles">
+  <table>
     <thead>
       <tr>
-        <th class="td-des">Désignation</th>
+        <th>Désignation</th>
         <th class="tc">Qté</th>
         <th class="tr">P.U.</th>
         ${thRef}
@@ -384,42 +378,42 @@ function imprimerDocument(data, entreprise, config) {
     </thead>
     <tbody>
       ${lignesRows}
-      ${totsRows}
     </tbody>
   </table>
 
-  <!-- TOTAL FINAL -->
-  <div class="total-block">
-    <span class="total-label">TOTAL ${data.applyTva ? "TTC" : ""}</span>
-    <span class="total-amount">${fmtAmt(data.total)}</span>
-  </div>
+  <!-- TOTAUX -->
+  <table class="totals">
+    ${totsRows}
+    <tr class="t-final">
+      <td class="t-label" colspan="${cols}">TOTAL ${data.applyTva ? "TTC" : ""}</td>
+      <td class="tr">${fmtAmt(data.total)}</td>
+    </tr>
+    ${renduRows}
+  </table>
 
-  <!-- RENDU MONNAIE -->
-  ${renduBlock}
-
-  <!-- MODE DE PAIEMENT -->
+  <!-- PAIEMENT -->
   ${data.paiement && data.type !== "devis"
-    ? `<div class="paiement-line">💳 Paiement : <strong>${pmodes[data.paiement] || data.paiement}</strong></div>`
+    ? `<div class="paiement-line">💳 Paiement : <strong>${pmodes[data.paiement] ?? escH(data.paiement)}</strong></div>`
     : ""}
 
   <!-- NOTE -->
   ${data.note ? `<div class="note-block">Note : ${escH(data.note)}</div>` : ""}
 
-  <!-- SIGNATURE -->
+  <!-- VISAS -->
   ${signHtml}
 
-  <!-- PIED DE PAGE -->
+  <!-- FOOTER -->
   <div class="footer">
-    ${config.footerThanks ? `<div class="footer-thanks">${escH(config.footerThanks)}</div>` : ""}
-    ${config.footerLegal  ? `<div class="footer-legal">${escH(config.footerLegal).replace(/\n/g,"<br>")}</div>` : ""}
-    <div class="footer-brand">FacturaPro</div>
+    ${config.footerThanks ? `<div class="f-thanks">${escH(config.footerThanks)}</div>` : ""}
+    ${config.footerLegal  ? `<div class="f-note">${escH(config.footerLegal).replace(/\n/g,"<br>")}</div>` : ""}
+    ${fiscalStr ? `<div class="f-fiscal">${fiscalStr}</div>` : ""}
+    <div class="f-brand">FacturaPro</div>
   </div>
 
 </body>
 </html>`;
 
-  // ── Injection dans une iframe cachée ──
-  // On réutilise la même iframe pour éviter les fuites mémoire
+  // ── Injection dans iframe cachée ──
   let iframe = document.getElementById("print-iframe");
   if (!iframe) {
     iframe = document.createElement("iframe");
@@ -436,28 +430,15 @@ function imprimerDocument(data, entreprise, config) {
   iDoc.write(html);
   iDoc.close();
 
-  // On attend que les ressources (logo…) soient chargées
   iframe.onload = () => {
     setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }, 300);
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+      catch(e) { console.warn("print onload:", e); }
+    }, 350);
   };
-
-  // Fallback si onload ne se déclenche pas (doc déjà chargé)
+  // Fallback
   setTimeout(() => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } catch (e) { console.warn("print fallback:", e); }
-  }, 600);
-}
-
-// ── Petit helper HTML escape (dupliqué ici pour autonomie du fichier) ──
-function escH(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+    catch(e) { console.warn("print fallback:", e); }
+  }, 750);
 }

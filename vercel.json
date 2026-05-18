@@ -1,53 +1,78 @@
 {
   "version": 2,
-  "name": "facturapo",
+  "name": "facturapro",
   "buildCommand": null,
   "outputDirectory": ".",
   "cleanUrls": false,
   "trailingSlash": false,
 
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control",         "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed","value": "/" },
+        { "key": "Content-Type",          "value": "application/javascript; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type",  "value": "application/manifest+json" }
+      ]
+    },
+    {
+      "source": "/js/:file",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/icons/:file",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options",                   "value": "nosniff" },
+        { "key": "X-Frame-Options",                          "value": "DENY" },
+        { "key": "X-XSS-Protection",                         "value": "1; mode=block" },
+        { "key": "Referrer-Policy",                          "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy",                       "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-ancestors 'none';"
+        }
+      ]
+    }
+  ],
+
   "routes": [
     {
       "src": "/sw\\.js",
-      "dest": "/sw.js",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Service-Worker-Allowed": "/"
-      }
+      "dest": "/sw.js"
     },
     {
       "src": "/manifest\\.json",
-      "dest": "/manifest.json",
-      "headers": {
-        "Cache-Control": "public, max-age=86400",
-        "Content-Type": "application/manifest+json"
-      }
+      "dest": "/manifest.json"
     },
     {
       "src": "/js/(.*)",
-      "dest": "/js/$1",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/js/$1"
     },
     {
       "src": "/icons/(.*)",
-      "dest": "/icons/$1",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/icons/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "X-XSS-Protection": "1; mode=block",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
-      }
+      "dest": "/index.html"
     }
   ]
 }
