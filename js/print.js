@@ -36,9 +36,9 @@ function _pFmtNum(n) {
 function imprimerDocument(data, entreprise, config) {
   const escH = window.escHtml;
 
-  const fmt_   = config.format    || "thermal";
-  const dev    = config.devise    || entreprise.devise || "F CFA";
-  const pos    = config.devisePos || "after";
+  const fmt_ = config.format || "thermal";
+  const dev = config.devise || entreprise.devise || "F CFA";
+  const pos = config.devisePos || "after";
 
   // Formatage montant — ASCII uniquement, pas de \u202F
   const fmtAmt = n => {
@@ -47,12 +47,12 @@ function imprimerDocument(data, entreprise, config) {
   };
 
   const typeLbl = { facture: "FACTURE", recu: "REÇU", devis: "DEVIS" };
-  const pmodes  = {
-    especes:      "Espèces",
+  const pmodes = {
+    especes: "Espèces",
     mobile_money: "Mobile Money",
-    virement:     "Virement bancaire",
-    cheque:       "Chèque",
-    credit:       "À crédit",
+    virement: "Virement bancaire",
+    cheque: "Chèque",
+    credit: "À crédit",
   };
 
   // Date sécurisée
@@ -68,8 +68,8 @@ function imprimerDocument(data, entreprise, config) {
   // CSS @page selon format
   const paperCSS = {
     thermal: `@page { size: 80mm 297mm; margin: 2mm 3mm; } body { max-width: 74mm; font-size: 8px; }`,
-    a5:      `@page { size: A5 portrait; margin: 8mm; }    body { max-width: 140mm; font-size: 10px; }`,
-    a4:      `@page { size: A4 portrait; margin: 12mm; }   body { max-width: 186mm; font-size: 11px; }`,
+    a5: `@page { size: A5 portrait; margin: 8mm; }    body { max-width: 140mm; font-size: 10px; }`,
+    a4: `@page { size: A4 portrait; margin: 12mm; }   body { max-width: 186mm; font-size: 11px; }`,
   }[fmt_] ?? `@page { size: 80mm 297mm; margin: 2mm 3mm; } body { max-width: 74mm; font-size: 8px; }`;
 
   // Guard lignes
@@ -87,15 +87,15 @@ function imprimerDocument(data, entreprise, config) {
     ${entreprise.slogan ? `<div class="company-slogan">${escH(entreprise.slogan)}</div>` : ""}
     <div class="company-info">
       ${[
-          [entreprise.adresse, entreprise.ville, entreprise.pays].filter(Boolean).join(", "),
-          [entreprise.tel, entreprise.tel2].filter(Boolean).join(" / "),
-          entreprise.email,
-          entreprise.web,
-        ].filter(Boolean).map(l => `<div>${escH(l)}</div>`).join("")}
+      [entreprise.adresse, entreprise.ville, entreprise.pays].filter(Boolean).join(", "),
+      [entreprise.tel, entreprise.tel2].filter(Boolean).join(" / "),
+      entreprise.email,
+      entreprise.web,
+    ].filter(Boolean).map(l => `<div>${escH(l)}</div>`).join("")}
     </div>` : "";
 
   const fiscalStr = [
-    entreprise.rc  && `RC : ${entreprise.rc}`,
+    entreprise.rc && `RC : ${entreprise.rc}`,
     entreprise.nif && `NIF : ${entreprise.nif}`,
   ].filter(Boolean).join(" &nbsp;|&nbsp; ");
 
@@ -393,8 +393,8 @@ function imprimerDocument(data, entreprise, config) {
 
   <!-- PAIEMENT -->
   ${data.paiement && data.type !== "devis"
-    ? `<div class="paiement-line">💳 Paiement : <strong>${pmodes[data.paiement] ?? escH(data.paiement)}</strong></div>`
-    : ""}
+      ? `<div class="paiement-line">💳 Paiement : <strong>${pmodes[data.paiement] ?? escH(data.paiement)}</strong></div>`
+      : ""}
 
   <!-- NOTE -->
   ${data.note ? `<div class="note-block">Note : ${escH(data.note)}</div>` : ""}
@@ -405,7 +405,7 @@ function imprimerDocument(data, entreprise, config) {
   <!-- FOOTER -->
   <div class="footer">
     ${config.footerThanks ? `<div class="f-thanks">${escH(config.footerThanks)}</div>` : ""}
-    ${config.footerLegal  ? `<div class="f-note">${escH(config.footerLegal).replace(/\n/g,"<br>")}</div>` : ""}
+    ${config.footerLegal ? `<div class="f-note">${escH(config.footerLegal).replace(/\n/g, "<br>")}</div>` : ""}
     ${fiscalStr ? `<div class="f-fiscal">${fiscalStr}</div>` : ""}
     <div class="f-brand">FacturaPro</div>
   </div>
@@ -433,12 +433,12 @@ function imprimerDocument(data, entreprise, config) {
   iframe.onload = () => {
     setTimeout(() => {
       try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-      catch(e) { console.warn("print onload:", e); }
+      catch (e) { console.warn("print onload:", e); }
     }, 350);
   };
   // Fallback
   setTimeout(() => {
     try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-    catch(e) { console.warn("print fallback:", e); }
+    catch (e) { console.warn("print fallback:", e); }
   }, 750);
 }

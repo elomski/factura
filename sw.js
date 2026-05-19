@@ -14,7 +14,7 @@
 
 // [FIX A] Nom cohérent (était "facturapo-v1")
 const CACHE_VERSION = "facturapro-v6";
-const CACHE_STATIC  = `${CACHE_VERSION}-static`;
+const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 
 // Ressources pré-cachées à l'installation
@@ -126,17 +126,17 @@ self.addEventListener("fetch", event => {
 
 function isStaticAsset(url) {
   return (
-    url.pathname.startsWith("/js/")            ||
-    url.pathname.startsWith("/icons/")         ||
-    url.pathname.endsWith(".css")              ||
-    url.pathname.endsWith(".woff2")            ||
-    url.pathname.endsWith(".woff")             ||
-    url.pathname.endsWith(".ttf")              ||
-    url.pathname.endsWith(".png")              ||
-    url.pathname.endsWith(".jpg")              ||
-    url.hostname === "fonts.googleapis.com"    ||
-    url.hostname === "fonts.gstatic.com"       ||
-    url.hostname === "cdnjs.cloudflare.com"    ||
+    url.pathname.startsWith("/js/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.endsWith(".css") ||
+    url.pathname.endsWith(".woff2") ||
+    url.pathname.endsWith(".woff") ||
+    url.pathname.endsWith(".ttf") ||
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".jpg") ||
+    url.hostname === "fonts.googleapis.com" ||
+    url.hostname === "fonts.gstatic.com" ||
+    url.hostname === "cdnjs.cloudflare.com" ||
     url.hostname === "www.gstatic.com"
   );
 }
@@ -189,8 +189,8 @@ async function networkFirstWithFallback(request) {
 
 /** Stale While Revalidate — sert le cache ET met à jour en fond */
 async function staleWhileRevalidate(request) {
-  const cache    = await caches.open(CACHE_DYNAMIC);
-  const cached   = await cache.match(request);
+  const cache = await caches.open(CACHE_DYNAMIC);
+  const cached = await cache.match(request);
   const fetchProm = fetch(request).then(response => {
     if (response.ok) cache.put(request, response.clone());
     return response;

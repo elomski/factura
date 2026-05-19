@@ -49,9 +49,9 @@ function genererPDF(data, entreprise, config) {
   const isThermal = fmt_ === "thermal";
 
   let pw, ph, margin;
-  if      (fmt_ === "a4") { pw = 210; ph = 297; margin = 12; }
-  else if (fmt_ === "a5") { pw = 148; ph = 210; margin = 8;  }
-  else                    { pw = 80;  ph = 400; margin = 3;  } // thermal : hauteur provisoire
+  if (fmt_ === "a4") { pw = 210; ph = 297; margin = 12; }
+  else if (fmt_ === "a5") { pw = 148; ph = 210; margin = 8; }
+  else { pw = 80; ph = 400; margin = 3; } // thermal : hauteur provisoire
 
   const lw = pw - 2 * margin;
 
@@ -60,63 +60,63 @@ function genererPDF(data, entreprise, config) {
   // A4/A5   : format standard
   const docFormat = isThermal ? [pw, ph] : (fmt_ === "a4" ? "a4" : "a5");
   const doc = new jsPDF({
-    unit:        "mm",
-    format:      docFormat,
+    unit: "mm",
+    format: docFormat,
     orientation: "portrait",
   });
 
   // ── Hauteur utile par page (A4/A5) ──
   // On réserve de l'espace en bas pour le footer
   const footerH = _estimateFooterHeight(config, entreprise, fmt_);
-  const pageH   = isThermal ? 9999 : ph; // thermal = infini
+  const pageH = isThermal ? 9999 : ph; // thermal = infini
   const safeBot = isThermal ? 9999 : pageH - margin - footerH;
 
   // ── Palette ──
-  const C_NOIR   = [17,  17,  17];
-  const C_CUIVRE = [181, 98,  43];
-  const C_BLANC  = [255, 255, 255];
-  const C_GRIS   = [244, 244, 244];
-  const C_MUTED  = [102, 102, 102];
-  const C_VERT   = [46,  125, 50];
-  const C_ROUGE  = [139, 32,  32];
-  const C_ALT    = [250, 250, 250];
+  const C_NOIR = [17, 17, 17];
+  const C_CUIVRE = [181, 98, 43];
+  const C_BLANC = [255, 255, 255];
+  const C_GRIS = [244, 244, 244];
+  const C_MUTED = [102, 102, 102];
+  const C_VERT = [46, 125, 50];
+  const C_ROUGE = [139, 32, 32];
+  const C_ALT = [250, 250, 250];
 
-  const safe   = str => sanitizePdf(str);
+  const safe = str => sanitizePdf(str);
   const fmtAmt = n => {
-    const s   = _fmtNum(n);
+    const s = _fmtNum(n);
     const dev = config.devise ?? entreprise.devise ?? "F CFA";
     return config.devisePos === "before" ? `${dev} ${s}` : `${s} ${dev}`;
   };
 
   const dateObj = data.date instanceof Date ? data.date : toDateObj(data.date);
   const dateStr =
-    String(dateObj.getDate()).padStart(2,"0") + "/" +
-    String(dateObj.getMonth()+1).padStart(2,"0") + "/" +
+    String(dateObj.getDate()).padStart(2, "0") + "/" +
+    String(dateObj.getMonth() + 1).padStart(2, "0") + "/" +
     dateObj.getFullYear() + " " +
-    String(dateObj.getHours()).padStart(2,"0") + ":" +
-    String(dateObj.getMinutes()).padStart(2,"0");
+    String(dateObj.getHours()).padStart(2, "0") + ":" +
+    String(dateObj.getMinutes()).padStart(2, "0");
 
   const fontSize = isThermal ? 7.5 : fmt_ === "a5" ? 9 : 10;
-  const smallSz  = isThermal ? 6   : 7.5;
-  const rowH_art = isThermal ? 6   : 7;
-  const thH      = isThermal ? 5.5 : 6.5;
-  const totRowH  = isThermal ? 4.5 : 6;
+  const smallSz = isThermal ? 6 : 7.5;
+  const rowH_art = isThermal ? 6 : 7;
+  const thH = isThermal ? 5.5 : 6.5;
+  const totRowH = isThermal ? 4.5 : 6;
   const rowH_box = isThermal ? 3.8 : 4.5;
 
   // ── Colonnes tableau ──
   const showRemise = config.showRef ?? false;
   let colDes, colQte, colPU, colRem, colTot;
   if (isThermal) {
-    colDes = lw*0.38; colQte = lw*0.12; colPU = lw*0.24;
-    colRem = showRemise ? lw*0.10 : 0;
+    colDes = lw * 0.38; colQte = lw * 0.12; colPU = lw * 0.24;
+    colRem = showRemise ? lw * 0.10 : 0;
   } else {
-    colDes = lw*0.42; colQte = lw*0.10; colPU = lw*0.22;
-    colRem = showRemise ? lw*0.08 : 0;
+    colDes = lw * 0.42; colQte = lw * 0.10; colPU = lw * 0.22;
+    colRem = showRemise ? lw * 0.08 : 0;
   }
   colTot = lw - colDes - colQte - colPU - colRem;
 
-  let y        = margin;
-  let pageNum  = 1;
+  let y = margin;
+  let pageNum = 1;
 
   // ════════════════════════════════════════════════════
   //  HELPER : saut de page automatique (A4/A5)
@@ -153,7 +153,7 @@ function genererPDF(data, entreprise, config) {
       const logoW = logoH;
       doc.addImage(
         entreprise.logoUrl, "JPEG",
-        pw/2 - logoW/2, y, logoW, logoH,
+        pw / 2 - logoW / 2, y, logoW, logoH,
         undefined, "FAST"
       );
       y += logoH + 2;
@@ -165,14 +165,14 @@ function genererPDF(data, entreprise, config) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(isThermal ? 9.5 : fmt_ === "a5" ? 13 : 16);
     doc.setTextColor(...C_NOIR);
-    doc.text(safe(entreprise.nom ?? "Mon Entreprise"), pw/2, y+4, { align:"center" });
+    doc.text(safe(entreprise.nom ?? "Mon Entreprise"), pw / 2, y + 4, { align: "center" });
     y += isThermal ? 5.5 : 8;
 
     if (entreprise.slogan) {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(smallSz);
       doc.setTextColor(...C_MUTED);
-      doc.text(safe(entreprise.slogan), pw/2, y+1, { align:"center" });
+      doc.text(safe(entreprise.slogan), pw / 2, y + 1, { align: "center" });
       y += 4;
     }
 
@@ -187,7 +187,7 @@ function genererPDF(data, entreprise, config) {
     doc.setFontSize(smallSz);
     doc.setTextColor(...C_MUTED);
     contactLines.forEach(l => {
-      doc.text(safe(l), pw/2, y+1, { align:"center" });
+      doc.text(safe(l), pw / 2, y + 1, { align: "center" });
       y += 3.5;
     });
     y += 1;
@@ -198,27 +198,27 @@ function genererPDF(data, entreprise, config) {
     doc.setFontSize(smallSz);
     doc.setTextColor(120, 110, 100);
     const hls = doc.splitTextToSize(safe(config.headerText), lw);
-    doc.text(hls, pw/2, y+1, { align:"center" });
+    doc.text(hls, pw / 2, y + 1, { align: "center" });
     y += hls.length * 3.2 + 2;
   }
 
   // Ligne séparatrice noire
   doc.setDrawColor(...C_NOIR);
   doc.setLineWidth(0.5);
-  doc.line(margin, y, pw-margin, y);
+  doc.line(margin, y, pw - margin, y);
   y += 4;
 
   // ════════════════════════════════════════════════════
   //  INV-BOX — numéro, date, client
   // ════════════════════════════════════════════════════
-  const typeLabel = { facture:"FACTURE", recu:"RECU", devis:"DEVIS" }[data.type] ?? "DOCUMENT";
+  const typeLabel = { facture: "FACTURE", recu: "RECU", devis: "DEVIS" }[data.type] ?? "DOCUMENT";
   const client = data.client ?? {};
 
   let boxLines = 2; // titre + numéro
   if (config.showDate !== false) boxLines++;
-  if (client.nom)     boxLines++;
-  if (client.tel)     boxLines++;
-  if (client.email)   boxLines++;
+  if (client.nom) boxLines++;
+  if (client.tel) boxLines++;
+  if (client.email) boxLines++;
   if (client.adresse) boxLines++;
   const boxH = 5 + boxLines * rowH_box + 3;
 
@@ -233,7 +233,7 @@ function genererPDF(data, entreprise, config) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(isThermal ? 8.5 : 12);
   doc.setTextColor(...C_NOIR);
-  doc.text(typeLabel, pw/2, by, { align:"center" });
+  doc.text(typeLabel, pw / 2, by, { align: "center" });
   by += rowH_box + 1;
 
   const drawBoxRow = (lbl, val) => {
@@ -243,15 +243,15 @@ function genererPDF(data, entreprise, config) {
     doc.text(lbl, bx, by);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...C_NOIR);
-    doc.text(safe(val), pw-margin-2, by, { align:"right" });
+    doc.text(safe(val), pw - margin - 2, by, { align: "right" });
     by += rowH_box;
   };
 
   drawBoxRow("N\u00B0 Facture", data.numero ?? "");
   if (config.showDate !== false) drawBoxRow("Date", dateStr);
-  if (client.nom)     drawBoxRow("Client",  client.nom);
-  if (client.tel)     drawBoxRow("Tel.",    client.tel);
-  if (client.email)   drawBoxRow("Email",   client.email);
+  if (client.nom) drawBoxRow("Client", client.nom);
+  if (client.tel) drawBoxRow("Tel.", client.tel);
+  if (client.email) drawBoxRow("Email", client.email);
   if (client.adresse) drawBoxRow("Adresse", client.adresse);
 
   y += boxH + 3;
@@ -285,24 +285,24 @@ function genererPDF(data, entreprise, config) {
     doc.setTextColor(...C_NOIR);
 
     let cx = margin + 1;
-    const desText = safe(l.des || `Article ${idx+1}`);
-    const desCut  = doc.splitTextToSize(desText, colDes - 1)[0];
+    const desText = safe(l.des || `Article ${idx + 1}`);
+    const desCut = doc.splitTextToSize(desText, colDes - 1)[0];
     doc.text(desCut, cx, y + rowH_art * 0.66);
     cx += colDes;
 
-    doc.text(String(l.qte),    cx + colQte/2, y + rowH_art*0.66, { align:"center" }); cx += colQte;
-    doc.text(_fmtNum(l.prix),  cx + colPU - 1, y + rowH_art*0.66, { align:"right"  }); cx += colPU;
+    doc.text(String(l.qte), cx + colQte / 2, y + rowH_art * 0.66, { align: "center" }); cx += colQte;
+    doc.text(_fmtNum(l.prix), cx + colPU - 1, y + rowH_art * 0.66, { align: "right" }); cx += colPU;
     if (showRemise) {
       if ((l.remise ?? 0) > 0)
-        doc.text(`${l.remise}%`, cx + colRem/2, y + rowH_art*0.66, { align:"center" });
+        doc.text(`${l.remise}%`, cx + colRem / 2, y + rowH_art * 0.66, { align: "center" });
       cx += colRem;
     }
-    doc.text(_fmtNum(tot), pw-margin-1, y + rowH_art*0.66, { align:"right" });
+    doc.text(_fmtNum(tot), pw - margin - 1, y + rowH_art * 0.66, { align: "right" });
 
     y += rowH_art;
     doc.setDrawColor(229, 229, 229);
     doc.setLineWidth(0.1);
-    doc.line(margin, y, pw-margin, y);
+    doc.line(margin, y, pw - margin, y);
   });
 
   y += 2;
@@ -310,11 +310,11 @@ function genererPDF(data, entreprise, config) {
   // ════════════════════════════════════════════════════
   //  TOTAUX — avec vérification de place
   // ════════════════════════════════════════════════════
-  const showTvaLine    = !!data.applyTva;
+  const showTvaLine = !!data.applyTva;
   const showRemiseLine = (data.remiseMt ?? 0) > 0;
-  const showRendu      = config.showRendu !== false &&
-                         (data.montantRecu ?? 0) > 0 &&
-                         data.type !== "devis";
+  const showRendu = config.showRendu !== false &&
+    (data.montantRecu ?? 0) > 0 &&
+    data.type !== "devis";
 
   const totLinesCount = [
     showTvaLine || showRemiseLine,
@@ -327,8 +327,8 @@ function genererPDF(data, entreprise, config) {
 
   const totBoxH = totLinesCount * totRowH;
   const paiementH = data.paiement && data.type !== "devis" ? 5 : 0;
-  const noteH     = data.note ? 8 : 0;
-  const signH     = config.showSign ? 14 : 0;
+  const noteH = data.note ? 8 : 0;
+  const signH = config.showSign ? 14 : 0;
 
   checkNewPage(totBoxH + paiementH + noteH + signH);
 
@@ -346,21 +346,21 @@ function genererPDF(data, entreprise, config) {
       doc.rect(margin, ty, lw, totRowH, "F");
     }
     doc.setFont("helvetica", bold ? "bold" : "normal");
-    doc.setFontSize(bigFont ? fontSize+1 : fontSize);
+    doc.setFontSize(bigFont ? fontSize + 1 : fontSize);
     doc.setTextColor(...(fgColor ?? C_MUTED));
-    doc.text(safe(lbl), margin+2, ty + totRowH*0.66);
+    doc.text(safe(lbl), margin + 2, ty + totRowH * 0.66);
     doc.setTextColor(...(bold && bgColor ? C_BLANC : (fgColor ?? C_NOIR)));
     if (bold && bgColor) doc.setFont("helvetica", "bold");
-    doc.text(safe(val), pw-margin-2, ty + totRowH*0.66, { align:"right" });
+    doc.text(safe(val), pw - margin - 2, ty + totRowH * 0.66, { align: "right" });
     ty += totRowH;
     doc.setDrawColor(229, 229, 229);
     doc.setLineWidth(0.1);
-    doc.line(margin, ty, pw-margin, ty);
+    doc.line(margin, ty, pw - margin, ty);
   };
 
   if (showTvaLine || showRemiseLine) drawTotRow("Total HT", fmtAmt(data.ht));
   if (showRemiseLine) drawTotRow(`Remise (${data.remise}%)`, `-${fmtAmt(data.remiseMt)}`, { fgColor: C_ROUGE });
-  if (showTvaLine)    drawTotRow(`TVA (${data.tvaRate}%)`, fmtAmt(data.tvaMt));
+  if (showTvaLine) drawTotRow(`TVA (${data.tvaRate}%)`, fmtAmt(data.tvaMt));
 
   drawTotRow(
     `TOTAL ${showTvaLine ? "TTC" : ""}`,
@@ -370,15 +370,15 @@ function genererPDF(data, entreprise, config) {
 
   if (showRendu) {
     const rendu = (data.montantRecu ?? 0) - (data.total ?? 0);
-    drawTotRow("Montant recu",  fmtAmt(data.montantRecu), { bgColor:[245,245,245], fgColor:C_MUTED });
-    drawTotRow("Rendu monnaie", fmtAmt(rendu),            { bgColor:[232,245,233], fgColor:C_VERT, bold:true });
+    drawTotRow("Montant recu", fmtAmt(data.montantRecu), { bgColor: [245, 245, 245], fgColor: C_MUTED });
+    drawTotRow("Rendu monnaie", fmtAmt(rendu), { bgColor: [232, 245, 233], fgColor: C_VERT, bold: true });
   }
 
   y = ty + 3;
 
   // ── Paiement ──
   if (data.paiement && data.type !== "devis") {
-    const pmodes = { especes:"Especes", mobile_money:"Mobile Money", virement:"Virement bancaire", cheque:"Cheque", credit:"A credit" };
+    const pmodes = { especes: "Especes", mobile_money: "Mobile Money", virement: "Virement bancaire", cheque: "Cheque", credit: "A credit" };
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fontSize);
     doc.setTextColor(...C_NOIR);
@@ -401,16 +401,16 @@ function genererPDF(data, entreprise, config) {
     y += 4;
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.2);
-    doc.line(margin, y, pw-margin, y);
+    doc.line(margin, y, pw - margin, y);
     y += 3;
     const visaW = lw * 0.45;
     doc.setDrawColor(...C_NOIR);
     doc.setLineWidth(0.3);
-    doc.line(margin, y+6, margin+visaW, y+6);
+    doc.line(margin, y + 6, margin + visaW, y + 6);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(smallSz - 0.5);
     doc.setTextColor(...C_MUTED);
-    doc.text("Signature vendeur", margin+visaW/2, y+10, { align:"center" });
+    doc.text("Signature vendeur", margin + visaW / 2, y + 10, { align: "center" });
     y += 14;
   }
 
@@ -441,7 +441,7 @@ function genererPDF(data, entreprise, config) {
   }
 
   // ── Sauvegarde ──
-  const nom = `${safe(data.numero ?? "doc")}_${safe(entreprise.nom ?? "facture").replace(/\s+/g,"_")}.pdf`;
+  const nom = `${safe(data.numero ?? "doc")}_${safe(entreprise.nom ?? "facture").replace(/\s+/g, "_")}.pdf`;
   doc.save(nom);
   return nom;
 }
@@ -459,17 +459,17 @@ function _drawTableHeader(doc, y, margin, lw, pw, thH, smallSz, colDes, colQte, 
   doc.setTextColor(...C_BLANC);
 
   let cx = margin + 1;
-  doc.text("DESIGNATION",            cx,               y + thH*0.7);
+  doc.text("DESIGNATION", cx, y + thH * 0.7);
   cx += colDes;
-  doc.text("QTE",   cx + colQte/2,   y + thH*0.7, { align:"center" });
+  doc.text("QTE", cx + colQte / 2, y + thH * 0.7, { align: "center" });
   cx += colQte;
-  doc.text("P.U.",  cx + colPU - 1,  y + thH*0.7, { align:"right"  });
+  doc.text("P.U.", cx + colPU - 1, y + thH * 0.7, { align: "right" });
   cx += colPU;
   if (showRemise) {
-    doc.text("REM%", cx + colRem/2,  y + thH*0.7, { align:"center" });
+    doc.text("REM%", cx + colRem / 2, y + thH * 0.7, { align: "center" });
     cx += colRem;
   }
-  doc.text("TOTAL", pw - margin - 1, y + thH*0.7, { align:"right"  });
+  doc.text("TOTAL", pw - margin - 1, y + thH * 0.7, { align: "right" });
 }
 
 /**
@@ -500,7 +500,7 @@ function _drawFooter(doc, pageHorY, margin, lw, pw, config, entreprise, pageNum,
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fontSize);
     doc.setTextColor(...C_CUIVRE);
-    doc.text(safe(config.footerThanks), pw/2, fy, { align:"center" });
+    doc.text(safe(config.footerThanks), pw / 2, fy, { align: "center" });
     fy += 4.5;
   }
 
@@ -509,33 +509,33 @@ function _drawFooter(doc, pageHorY, margin, lw, pw, config, entreprise, pageNum,
     doc.setFontSize(smallSz);
     doc.setTextColor(150, 140, 130);
     const legal = doc.splitTextToSize(safe(config.footerLegal), lw);
-    doc.text(legal, pw/2, fy, { align:"center" });
+    doc.text(legal, pw / 2, fy, { align: "center" });
     fy += legal.length * 3 + 2;
   }
 
   if (entreprise.rc || entreprise.nif) {
     const fiscal = [
-      entreprise.rc  && `RC : ${entreprise.rc}`,
+      entreprise.rc && `RC : ${entreprise.rc}`,
       entreprise.nif && `NIF : ${entreprise.nif}`,
     ].filter(Boolean).join("  |  ");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(smallSz - 0.5);
     doc.setTextColor(170, 160, 150);
-    doc.text(safe(fiscal), pw/2, fy, { align:"center" });
+    doc.text(safe(fiscal), pw / 2, fy, { align: "center" });
     fy += 4;
   }
 
   doc.setFontSize(5.5);
   doc.setTextColor(210, 200, 190);
-  doc.text("FacturaPro", pw/2, fy, { align:"center" });
+  doc.text("FacturaPro", pw / 2, fy, { align: "center" });
 }
 
 /** Estime la hauteur du footer pour réserver l'espace en bas */
 function _estimateFooterHeight(config, entreprise, fmt_) {
   let h = 3 + 2; // séparateur + marge
-  if (config.footerThanks)                       h += 4.5;
-  if (config.footerLegal)                         h += 8;   // estimation 2 lignes
-  if (entreprise.rc || entreprise.nif)            h += 4;
+  if (config.footerThanks) h += 4.5;
+  if (config.footerLegal) h += 8;   // estimation 2 lignes
+  if (entreprise.rc || entreprise.nif) h += 4;
   h += 4; // "FacturaPro"
   return h;
 }

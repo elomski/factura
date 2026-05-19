@@ -13,7 +13,7 @@
 "use strict";
 
 // [FIX A] Exposé sur window pour que app.js puisse y accéder
-window.allProduits     = [];
+window.allProduits = [];
 window.catalogueLoaded = false;
 
 // ─────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ window.chargerCatalogue = async function chargerCatalogue() {
       .where("uid", "==", window.currentUser.uid)
       .get();
 
-    window.allProduits     = snap.docs
+    window.allProduits = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.nom ?? "").localeCompare(b.nom ?? "", "fr"));
     window.catalogueLoaded = true;
@@ -87,8 +87,8 @@ function renderCatalogue(produits) {
       ${p.categorie ? `<div class="produit-cat">${escHtml(p.categorie)}</div>` : ""}
       ${p.description ? `<div class="produit-desc">${escHtml(p.description)}</div>` : ""}
       ${p.stock !== null && p.stock !== undefined
-        ? `<div class="produit-stock">📦 Stock : <strong>${p.stock}</strong></div>`
-        : ""}
+      ? `<div class="produit-stock">📦 Stock : <strong>${p.stock}</strong></div>`
+      : ""}
       <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;margin-top:10px;"
         onclick="ajouterProduitALaVente('${p.id}')">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
@@ -107,9 +107,9 @@ window.rechercherCatalogue = function rechercherCatalogue(q) {
   const term = q.toLowerCase().trim();
   if (!term) { renderCatalogue(window.allProduits); return; }
   const res = window.allProduits.filter(p =>
-    (p.nom         ?? "").toLowerCase().includes(term) ||
-    (p.ref         ?? "").toLowerCase().includes(term) ||
-    (p.categorie   ?? "").toLowerCase().includes(term) ||
+    (p.nom ?? "").toLowerCase().includes(term) ||
+    (p.ref ?? "").toLowerCase().includes(term) ||
+    (p.categorie ?? "").toLowerCase().includes(term) ||
     (p.description ?? "").toLowerCase().includes(term)
   );
   renderCatalogue(res);
@@ -128,12 +128,12 @@ window.ouvrirModalProduit = function ouvrirModalProduit(id) {
   document.getElementById("modal-produit-title").textContent =
     p ? "Modifier le produit" : "Nouveau produit";
 
-  document.getElementById("mp-nom").value         = p?.nom         ?? "";
-  document.getElementById("mp-ref").value         = p?.ref         ?? "";
-  document.getElementById("mp-prix").value        = p?.prix        ?? "";
-  document.getElementById("mp-categorie").value   = p?.categorie   ?? "";
+  document.getElementById("mp-nom").value = p?.nom ?? "";
+  document.getElementById("mp-ref").value = p?.ref ?? "";
+  document.getElementById("mp-prix").value = p?.prix ?? "";
+  document.getElementById("mp-categorie").value = p?.categorie ?? "";
   document.getElementById("mp-description").value = p?.description ?? "";
-  document.getElementById("mp-stock").value       = (p?.stock !== undefined && p?.stock !== null) ? p.stock : "";
+  document.getElementById("mp-stock").value = (p?.stock !== undefined && p?.stock !== null) ? p.stock : "";
 
   document.getElementById("modal-produit").classList.add("active");
   setTimeout(() => document.getElementById("mp-nom").focus(), 100);
@@ -145,22 +145,22 @@ window.fermerModalProduit = function fermerModalProduit() {
 };
 
 window.sauvegarderProduit = async function sauvegarderProduit() {
-  const nom  = document.getElementById("mp-nom").value.trim();
+  const nom = document.getElementById("mp-nom").value.trim();
   const prix = parseFloat(document.getElementById("mp-prix").value);
-  if (!nom)                    { toast("Le nom du produit est obligatoire.", "err"); return; }
+  if (!nom) { toast("Le nom du produit est obligatoire.", "err"); return; }
   if (isNaN(prix) || prix < 0) { toast("Le prix est invalide.", "err"); return; }
 
   const stockRaw = document.getElementById("mp-stock").value;
   const data = {
     nom,
-    ref:         document.getElementById("mp-ref").value.trim(),
+    ref: document.getElementById("mp-ref").value.trim(),
     prix,
-    categorie:   document.getElementById("mp-categorie").value.trim(),
+    categorie: document.getElementById("mp-categorie").value.trim(),
     description: document.getElementById("mp-description").value.trim(),
     // [FIX E] stock correctement conservé (null si vide)
-    stock:       stockRaw !== "" ? parseFloat(stockRaw) : null,
-    uid:         window.currentUser.uid,
-    updatedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+    stock: stockRaw !== "" ? parseFloat(stockRaw) : null,
+    uid: window.currentUser.uid,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
 
   loader(true);
@@ -205,19 +205,19 @@ window.ajouterProduitALaVente = function ajouterProduitALaVente(id) {
 
   const ligneVide = window.lignes.findIndex(l => l.des === "" && l.prix === 0);
   if (ligneVide >= 0) {
-    window.lignes[ligneVide].des    = p.nom;
-    window.lignes[ligneVide].prix   = p.prix;
-    window.lignes[ligneVide].qte    = 1;
+    window.lignes[ligneVide].des = p.nom;
+    window.lignes[ligneVide].prix = p.prix;
+    window.lignes[ligneVide].qte = 1;
     window.lignes[ligneVide].remise = 0;
     // [FIX E] stocker la ref produit pour info stock
     window.lignes[ligneVide].produitId = p.id;
   } else {
     window.lignes.push({
-      id:        Date.now(),
-      des:       p.nom,
-      prix:      p.prix,
-      qte:       1,
-      remise:    0,
+      id: Date.now(),
+      des: p.nom,
+      prix: p.prix,
+      qte: 1,
+      remise: 0,
       produitId: p.id,
     });
   }
@@ -259,7 +259,7 @@ window.setupAutocompleteLigne = function setupAutocompleteLigne(input, ligneInde
     cell.style.position = "relative";
 
     dropEl = document.createElement("div");
-    dropEl.className  = "autocomplete-drop";
+    dropEl.className = "autocomplete-drop";
     dropEl.style.cssText = [
       "position:absolute",
       "z-index:500",
@@ -284,8 +284,8 @@ window.setupAutocompleteLigne = function setupAutocompleteLigne(input, ligneInde
           <div style="font-size:13px;font-weight:600;color:var(--ink);">${escHtml(p.nom)}</div>
           ${p.ref ? `<div style="font-size:10px;color:var(--ink-muted);">Réf : ${escHtml(p.ref)}</div>` : ""}
           ${(p.stock !== null && p.stock !== undefined)
-            ? `<div style="font-size:10px;color:var(--ink-muted);">Stock : ${p.stock}</div>`
-            : ""}
+          ? `<div style="font-size:10px;color:var(--ink-muted);">Stock : ${p.stock}</div>`
+          : ""}
         </div>
         <div style="font-size:12px;font-weight:700;color:var(--copper);font-family:'DM Mono',monospace;">${fmt(p.prix)}</div>`;
 
@@ -293,15 +293,15 @@ window.setupAutocompleteLigne = function setupAutocompleteLigne(input, ligneInde
         e.preventDefault();
         // Sécurité : vérifier que l'index est toujours valide
         if (ligneIndex < window.lignes.length) {
-          window.lignes[ligneIndex].des       = p.nom;
-          window.lignes[ligneIndex].prix      = p.prix;
+          window.lignes[ligneIndex].des = p.nom;
+          window.lignes[ligneIndex].prix = p.prix;
           window.lignes[ligneIndex].produitId = p.id;
           renderLignes();
         }
         fermerDropdown();
       });
       item.addEventListener("mouseover", () => { item.style.background = "var(--bg)"; });
-      item.addEventListener("mouseout",  () => { item.style.background = ""; });
+      item.addEventListener("mouseout", () => { item.style.background = ""; });
       dropEl.appendChild(item);
     });
 

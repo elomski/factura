@@ -12,13 +12,13 @@
 // ══════════════════════════════════════════════════════
 
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyDrhlfcyuWsll3aDc9bLnxeCIIb_QCF6So",
-  authDomain:        "factura-9961f.firebaseapp.com",
-  projectId:         "factura-9961f",
-  storageBucket:     "factura-9961f.firebasestorage.app",
+  apiKey: "AIzaSyDrhlfcyuWsll3aDc9bLnxeCIIb_QCF6So",
+  authDomain: "factura-9961f.firebaseapp.com",
+  projectId: "factura-9961f",
+  storageBucket: "factura-9961f.firebasestorage.app",
   messagingSenderId: "31566447499",
-  appId:             "1:31566447499:web:7e45398fb627878356a58e",
-  measurementId:     "G-E8RDSTKEE1",
+  appId: "1:31566447499:web:7e45398fb627878356a58e",
+  measurementId: "G-E8RDSTKEE1",
 };
 
 // ── Initialisation (guard contre double-init) ──
@@ -48,7 +48,7 @@ db.enablePersistence({ synchronizeTabs: true })
 const auth = firebase.auth();
 
 // ── Exposition globale ──
-window.db   = db;
+window.db = db;
 window.auth = auth;
 // Note : Firebase Storage retiré → upload logo via Cloudinary (gratuit, sans carte bancaire)
 // Voir la configuration CLOUDINARY_CLOUD_NAME dans index.html

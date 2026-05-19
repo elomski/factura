@@ -16,11 +16,11 @@
 
 window.escHtml = function escHtml(str) {
   return String(str ?? "")
-    .replace(/&/g,  "&amp;")
-    .replace(/</g,  "&lt;")
-    .replace(/>/g,  "&gt;")
-    .replace(/"/g,  "&quot;")
-    .replace(/'/g,  "&#39;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 };
 
 // Alias identique pour print.js (autonomie préservée)
@@ -33,9 +33,9 @@ window.escH = window.escHtml;
 // ─────────────────────────────────────────────────────
 
 window.fmt = function fmt(n) {
-  const cfg = window.config    ?? {};
+  const cfg = window.config ?? {};
   const ent = window.entreprise ?? {};
-  const dev = cfg.devise    ?? ent.devise ?? "F CFA";
+  const dev = cfg.devise ?? ent.devise ?? "F CFA";
   const pos = cfg.devisePos ?? "after";
   // F CFA = entier, pas de décimale affichée
   const num = Number(n ?? 0).toLocaleString("fr-FR", {
@@ -53,10 +53,10 @@ window.fmtDate = function fmtDate(ts) {
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("fr-FR", {
-    day:    "2-digit",
-    month:  "2-digit",
-    year:   "numeric",
-    hour:   "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
   });
 };
@@ -79,8 +79,8 @@ window.toDateObj = function toDateObj(ts) {
 window.genNumero = function genNumero(type, counter) {
   const prefix = { facture: "FAC", recu: "REC", devis: "DEV" }[type] ?? "DOC";
   const now = new Date();
-  const yy  = now.getFullYear().toString().slice(2);
-  const mm  = String(now.getMonth() + 1).padStart(2, "0");
+  const yy = now.getFullYear().toString().slice(2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
   return `${prefix}-${yy}${mm}-${String(counter).padStart(4, "0")}`;
 };
 
@@ -91,8 +91,8 @@ window.genNumero = function genNumero(type, counter) {
 window.toast = function toast(msg, type = "ok", dur = 3800) {
   const el = document.getElementById("toast");
   if (!el) return;
-  el.textContent   = msg;
-  el.className     = `toast ${type}`;
+  el.textContent = msg;
+  el.className = `toast ${type}`;
   el.style.display = "block";
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = "none"; }, dur);
@@ -148,8 +148,8 @@ window.partagerPDF = async function partagerPDF(blob, filename, text = "") {
   // 2. WhatsApp Web (lien texte — le PDF doit être hébergé pour cela,
   //    donc on télécharge d'abord puis ouvre WhatsApp)
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement("a");
-  a.href     = url;
+  const a = document.createElement("a");
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();

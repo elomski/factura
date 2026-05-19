@@ -12,7 +12,7 @@
 
 "use strict";
 
-let allCredits    = [];
+let allCredits = [];
 let filtreCredits = "encours"; // "tous" | "encours" | "solde"
 
 // ─────────────────────────────────────────────────────
@@ -50,16 +50,16 @@ window.chargerCredits = async function chargerCredits() {
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => toDateObj(a.date) - toDateObj(b.date)); // tri client
 
-      const totalPaye    = paiements.reduce((s, p) => s + (p.montant ?? 0), 0);
+      const totalPaye = paiements.reduce((s, p) => s + (p.montant ?? 0), 0);
       const soldeRestant = (v.total ?? 0) - totalPaye;
-      const estSolde     = v.solde === true || soldeRestant <= 0.01;
+      const estSolde = v.solde === true || soldeRestant <= 0.01;
 
       return {
         ...v,
         paiements,
         totalPaye,
         soldeRestant: Math.max(0, soldeRestant),
-        solde:        estSolde,
+        solde: estSolde,
       };
     }));
 
@@ -80,15 +80,15 @@ window.chargerCredits = async function chargerCredits() {
 // ─────────────────────────────────────────────────────
 
 function updateStatsCredits() {
-  const encours   = allCredits.filter(c => !c.solde);
-  const totalDu   = encours.reduce((s, c) => s + c.soldeRestant, 0);
+  const encours = allCredits.filter(c => !c.solde);
+  const totalDu = encours.reduce((s, c) => s + c.soldeRestant, 0);
   const nbClients = new Set(encours.map(c => c.client?.nom ?? "?")).size;
 
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set("cr-stat-nb",      encours.length);
-  set("cr-stat-total",   Math.round(totalDu).toLocaleString("fr-FR"));
+  set("cr-stat-nb", encours.length);
+  set("cr-stat-total", Math.round(totalDu).toLocaleString("fr-FR"));
   set("cr-stat-clients", nbClients);
-  set("cr-stat-soldes",  allCredits.filter(c => c.solde).length);
+  set("cr-stat-soldes", allCredits.filter(c => c.solde).length);
 }
 
 // ─────────────────────────────────────────────────────
@@ -101,13 +101,13 @@ function renderCredits() {
 
   let filtered = allCredits;
   if (filtreCredits === "encours") filtered = allCredits.filter(c => !c.solde);
-  if (filtreCredits === "solde")   filtered = allCredits.filter(c =>  c.solde);
+  if (filtreCredits === "solde") filtered = allCredits.filter(c => c.solde);
 
   const q = (document.getElementById("cr-search")?.value ?? "").trim().toLowerCase();
   if (q) filtered = filtered.filter(c =>
     (c.client?.nom ?? "").toLowerCase().includes(q) ||
     (c.client?.tel ?? "").toLowerCase().includes(q) ||
-    (c.numero      ?? "").toLowerCase().includes(q)
+    (c.numero ?? "").toLowerCase().includes(q)
   );
 
   if (!filtered.length) {
@@ -181,22 +181,22 @@ window.ouvrirModalPaiement = function ouvrirModalPaiement(ventId) {
   if (!c) return;
   _creditEnCours = c;
 
-  document.getElementById("mp-cr-client").textContent  = c.client?.nom ?? "Anonyme";
-  document.getElementById("mp-cr-total").textContent   = fmt(c.total);
-  document.getElementById("mp-cr-paye").textContent    = fmt(c.totalPaye);
+  document.getElementById("mp-cr-client").textContent = c.client?.nom ?? "Anonyme";
+  document.getElementById("mp-cr-total").textContent = fmt(c.total);
+  document.getElementById("mp-cr-paye").textContent = fmt(c.totalPaye);
   document.getElementById("mp-cr-restant").textContent = fmt(c.soldeRestant);
-  document.getElementById("mp-cr-montant").value       = "";
-  document.getElementById("mp-cr-note").value          = "";
-  document.getElementById("mp-cr-date").value          = new Date().toISOString().slice(0, 10);
+  document.getElementById("mp-cr-montant").value = "";
+  document.getElementById("mp-cr-note").value = "";
+  document.getElementById("mp-cr-date").value = new Date().toISOString().slice(0, 10);
 
   const hist = document.getElementById("mp-cr-historique");
   if (c.paiements?.length) {
     hist.innerHTML = c.paiements.map(p => `
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <span style="color:var(--ink-soft);">${
-          // [FIX D] toDateObj() pour éviter crash Timestamp
-          toDateObj(p.date).toLocaleDateString("fr-FR")
-        }</span>
+      // [FIX D] toDateObj() pour éviter crash Timestamp
+      toDateObj(p.date).toLocaleDateString("fr-FR")
+      }</span>
         <span style="font-weight:600;color:var(--green);font-family:'DM Mono',monospace;">${fmt(p.montant)}</span>
         ${p.note ? `<span style="color:var(--ink-muted);font-style:italic;">${escHtml(p.note)}</span>` : ""}
       </div>`).join("");
@@ -216,7 +216,7 @@ window.fermerModalPaiement = function fermerModalPaiement() {
 window.enregistrerPaiement = async function enregistrerPaiement() {
   if (!_creditEnCours) return;
   const montant = parseFloat(document.getElementById("mp-cr-montant").value);
-  const note    = document.getElementById("mp-cr-note").value.trim();
+  const note = document.getElementById("mp-cr-note").value.trim();
   const dateStr = document.getElementById("mp-cr-date").value;
 
   if (!montant || montant <= 0) {
@@ -235,7 +235,7 @@ window.enregistrerPaiement = async function enregistrerPaiement() {
       montant,
       note,
       dateStr,
-      date:      firebase.firestore.Timestamp.fromDate(new Date(dateStr + "T12:00:00")),
+      date: firebase.firestore.Timestamp.fromDate(new Date(dateStr + "T12:00:00")),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -263,10 +263,10 @@ window.marquerSolde = async function marquerSolde(ventId) {
     const c = allCredits.find(x => x.id === ventId);
     if (c && c.soldeRestant > 0.01) {
       await db.collection("ventes").doc(ventId).collection("paiements").add({
-        montant:   c.soldeRestant,
-        note:      "Solde final",
-        dateStr:   new Date().toISOString().slice(0, 10),
-        date:      firebase.firestore.Timestamp.fromDate(new Date()),
+        montant: c.soldeRestant,
+        note: "Solde final",
+        dateStr: new Date().toISOString().slice(0, 10),
+        date: firebase.firestore.Timestamp.fromDate(new Date()),
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
     }
@@ -356,7 +356,7 @@ window.ouvrirDetailCredit = function ouvrirDetailCredit(ventId) {
   `;
 
   document.getElementById("modal-print-btn").style.display = "none";
-  document.getElementById("modal-pdf-btn").style.display   = "none";
+  document.getElementById("modal-pdf-btn").style.display = "none";
   document.getElementById("modal-detail").classList.add("active");
 };
 
@@ -367,23 +367,23 @@ window.ouvrirDetailCredit = function ouvrirDetailCredit(ventId) {
 window.exporterCreditsCSV = function exporterCreditsCSV() {
   if (!allCredits.length) { toast("Aucune donnée.", "info"); return; }
   const rows = allCredits.map(c => ({
-    "Numéro":     c.numero      ?? "",
-    "Client":     c.client?.nom ?? "",
-    "Téléphone":  c.client?.tel ?? "",
-    "Total":      c.total       ?? 0,
-    "Payé":       c.totalPaye   ?? 0,
-    "Reste":      c.soldeRestant ?? 0,
-    "Statut":     c.solde ? "Soldé" : "En cours",
+    "Numéro": c.numero ?? "",
+    "Client": c.client?.nom ?? "",
+    "Téléphone": c.client?.tel ?? "",
+    "Total": c.total ?? 0,
+    "Payé": c.totalPaye ?? 0,
+    "Reste": c.soldeRestant ?? 0,
+    "Statut": c.solde ? "Soldé" : "En cours",
     "Date vente": fmtDate(c.date),
   }));
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(";"),
-    ...rows.map(r => headers.map(h => `"${String(r[h]).replace(/"/g,'""')}"`).join(";")),
+    ...rows.map(r => headers.map(h => `"${String(r[h]).replace(/"/g, '""')}"`).join(";")),
   ].join("\n");
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
   a.href = url;
   a.download = `credits_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a);
