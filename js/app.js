@@ -25,13 +25,13 @@
 // ─────────────────────────────────────────────────────
 //  ÉTAT GLOBAL (exposé sur window pour inter-modules)
 // ─────────────────────────────────────────────────────
-window.currentUser = null;
-window.lignes = [];
-window.docType = "facture";
-window.entreprise = {};
-window.config = {};
-window.allVentes = [];   // [FIX D] cache global partagé avec credits.js
-let _saving = false;
+window.currentUser  = null;
+window.lignes       = [];
+window.docType      = "facture";
+window.entreprise   = {};
+window.config       = {};
+window.allVentes    = [];   // [FIX D] cache global partagé avec credits.js
+let _saving         = false;
 
 // Persistence activée dans firebase-config.js (avant utils.js)
 
@@ -42,7 +42,7 @@ let _saving = false;
 function settingsRef(doc) {
   const uid = window.currentUser.uid;
   return db.collection("users").doc(uid)
-    .collection("settings").doc(doc);
+           .collection("settings").doc(doc);
 }
 
 // ─────────────────────────────────────────────────────
@@ -56,21 +56,21 @@ window.showView = function showView(id, btn) {
   document.querySelectorAll(".sb-item").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
   const titles = {
-    dashboard: "Tableau de bord",
+    dashboard:        "Tableau de bord",
     "nouvelle-vente": "Nouvelle vente",
-    historique: "Historique des ventes",
-    credits: "Crédits & Ardoises",
-    catalogue: "Catalogue produits",
-    parametres: "Paramètres",
+    historique:       "Historique des ventes",
+    credits:          "Crédits & Ardoises",
+    catalogue:        "Catalogue produits",
+    parametres:       "Paramètres",
   };
   const el = document.getElementById("topbar-title");
   if (el) el.textContent = titles[id] ?? id;
 
   // Déclencher les chargements selon la vue
-  if (id === "dashboard") chargerDashboard();
-  if (id === "historique") chargerHistorique();
-  if (id === "credits") chargerCredits();
-  if (id === "catalogue") chargerCatalogue();
+  if (id === "dashboard")        chargerDashboard();
+  if (id === "historique")       chargerHistorique();
+  if (id === "credits")          chargerCredits();
+  if (id === "catalogue")        chargerCatalogue();
 };
 
 // ─────────────────────────────────────────────────────
@@ -142,11 +142,11 @@ auth.onAuthStateChanged(user => {
 
 async function seConnecter() {
   const email = document.getElementById("l-email").value.trim();
-  const pwd = document.getElementById("l-pwd").value;
+  const pwd   = document.getElementById("l-pwd").value;
   const errEl = document.getElementById("login-error");
   errEl.style.display = "none";
   if (!email || !pwd) {
-    errEl.textContent = "Remplis tous les champs.";
+    errEl.textContent   = "Remplis tous les champs.";
     errEl.style.display = "block";
     return;
   }
@@ -155,20 +155,20 @@ async function seConnecter() {
     await auth.signInWithEmailAndPassword(email, pwd);
   } catch (e) {
     const msgs = {
-      "auth/invalid-email": "Adresse email invalide.",
-      "auth/user-not-found": "Aucun compte avec cet email.",
-      "auth/wrong-password": "Mot de passe incorrect.",
+      "auth/invalid-email":      "Adresse email invalide.",
+      "auth/user-not-found":     "Aucun compte avec cet email.",
+      "auth/wrong-password":     "Mot de passe incorrect.",
       "auth/invalid-credential": "Email ou mot de passe incorrect.",
-      "auth/too-many-requests": "Trop de tentatives. Réessaie plus tard.",
+      "auth/too-many-requests":  "Trop de tentatives. Réessaie plus tard.",
     };
-    errEl.textContent = msgs[e.code] ?? e.message;
+    errEl.textContent   = msgs[e.code] ?? e.message;
     errEl.style.display = "block";
   }
   loader(false);
 }
 
-window.seConnecter = seConnecter;
-window.seDeconnecter = () => auth.signOut();
+window.seConnecter    = seConnecter;
+window.seDeconnecter  = () => auth.signOut();
 
 ["l-email", "l-pwd"].forEach(id => {
   document.getElementById(id)?.addEventListener("keydown", e => {
@@ -203,9 +203,9 @@ async function chargerConfig() {
 
 function remplirChampsEntreprise() {
   const map = {
-    "p-nom": "nom", "p-slogan": "slogan", "p-tel": "tel", "p-tel2": "tel2",
-    "p-email": "email", "p-web": "web", "p-adresse": "adresse", "p-ville": "ville",
-    "p-pays": "pays", "p-devise": "devise", "p-rc": "rc", "p-nif": "nif", "p-logo-url": "logoUrl",
+    "p-nom":"nom","p-slogan":"slogan","p-tel":"tel","p-tel2":"tel2",
+    "p-email":"email","p-web":"web","p-adresse":"adresse","p-ville":"ville",
+    "p-pays":"pays","p-devise":"devise","p-rc":"rc","p-nif":"nif","p-logo-url":"logoUrl",
   };
   for (const [elId, key] of Object.entries(map)) {
     const el = document.getElementById(elId);
@@ -219,23 +219,23 @@ function remplirChampsEntreprise() {
 function remplirChampsConfig() {
   const cfg = window.config;
   const checkMap = {
-    "p-show-logo": "showLogo",
+    "p-show-logo":    "showLogo",
     "p-show-company": "showCompany",
-    "p-show-date": "showDate",
-    "p-show-ref": "showRef",
-    "p-show-rendu": "showRendu",
-    "p-show-tva": "showTva",
-    "p-show-sign": "showSign",
+    "p-show-date":    "showDate",
+    "p-show-ref":     "showRef",
+    "p-show-rendu":   "showRendu",
+    "p-show-tva":     "showTva",
+    "p-show-sign":    "showSign",
   };
   for (const [elId, key] of Object.entries(checkMap)) {
     const el = document.getElementById(elId);
     if (el) el.checked = cfg[key] !== false;
   }
-  if (cfg.tvaRate) document.getElementById("p-tva-rate").value = cfg.tvaRate;
-  if (cfg.format) setChipValue("format-chips", cfg.format, "p-format");
+  if (cfg.tvaRate)   document.getElementById("p-tva-rate").value = cfg.tvaRate;
+  if (cfg.format)    setChipValue("format-chips",     cfg.format,    "p-format");
   if (cfg.devisePos) setChipValue("devise-pos-chips", cfg.devisePos, "p-devise-pos");
 
-  const textMap = { "p-header": "headerText", "p-footer-thanks": "footerThanks", "p-footer-legal": "footerLegal" };
+  const textMap = { "p-header":"headerText","p-footer-thanks":"footerThanks","p-footer-legal":"footerLegal" };
   for (const [elId, key] of Object.entries(textMap)) {
     const el = document.getElementById(elId);
     if (el && cfg[key]) el.value = cfg[key];
@@ -245,14 +245,14 @@ function remplirChampsConfig() {
   if (tvaLbl) tvaLbl.textContent = `Taux : ${cfg.tvaRate ?? 18} %`;
 
   const dev = cfg.devise ?? window.entreprise.devise ?? "F CFA";
-  ["stat-devise", "stat-devise2"].forEach(id => {
+  ["stat-devise","stat-devise2"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = dev;
   });
 }
 
 window.updateLogoPreview = function updateLogoPreview() {
-  const url = document.getElementById("p-logo-url")?.value.trim();
+  const url  = document.getElementById("p-logo-url")?.value.trim();
   const wrap = document.getElementById("logo-preview-wrap");
   if (!wrap) return;
   wrap.innerHTML = url
@@ -261,27 +261,27 @@ window.updateLogoPreview = function updateLogoPreview() {
 };
 
 window.updatePreviewEntreprise = function updatePreviewEntreprise() {
-  const nom = document.getElementById("p-nom")?.value ?? window.entreprise.nom ?? "Nom entreprise";
-  const tel = document.getElementById("p-tel")?.value ?? window.entreprise.tel ?? "";
-  const em = document.getElementById("p-email")?.value ?? window.entreprise.email ?? "";
+  const nom = document.getElementById("p-nom")?.value     ?? window.entreprise.nom     ?? "Nom entreprise";
+  const tel = document.getElementById("p-tel")?.value     ?? window.entreprise.tel     ?? "";
+  const em  = document.getElementById("p-email")?.value   ?? window.entreprise.email   ?? "";
   const adr = document.getElementById("p-adresse")?.value ?? window.entreprise.adresse ?? "";
-  const nomEl = document.getElementById("prev-nom");
+  const nomEl  = document.getElementById("prev-nom");
   const infoEl = document.getElementById("prev-info");
-  if (nomEl) nomEl.textContent = nom;
-  if (infoEl) infoEl.innerHTML = [tel, em, adr].filter(Boolean).join(" · ") || "Téléphone · Email · Adresse";
+  if (nomEl)  nomEl.textContent = nom;
+  if (infoEl) infoEl.innerHTML  = [tel, em, adr].filter(Boolean).join(" · ") || "Téléphone · Email · Adresse";
   updateLogoPreview();
 };
 
-["p-nom", "p-tel", "p-email", "p-adresse"].forEach(id => {
+["p-nom","p-tel","p-email","p-adresse"].forEach(id => {
   document.getElementById(id)?.addEventListener("input", updatePreviewEntreprise);
 });
 
 window.sauvegarderEntreprise = async function sauvegarderEntreprise() {
   const g = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
-    nom: g("p-nom"), slogan: g("p-slogan"), tel: g("p-tel"), tel2: g("p-tel2"),
-    email: g("p-email"), web: g("p-web"), adresse: g("p-adresse"), ville: g("p-ville"),
-    pays: g("p-pays"), devise: g("p-devise") || "F CFA", rc: g("p-rc"), nif: g("p-nif"), logoUrl: g("p-logo-url"),
+    nom:g("p-nom"),slogan:g("p-slogan"),tel:g("p-tel"),tel2:g("p-tel2"),
+    email:g("p-email"),web:g("p-web"),adresse:g("p-adresse"),ville:g("p-ville"),
+    pays:g("p-pays"),devise:g("p-devise")||"F CFA",rc:g("p-rc"),nif:g("p-nif"),logoUrl:g("p-logo-url"),
   };
   if (!data.nom) { toast("Le nom de l'entreprise est obligatoire.", "err"); return; }
   loader(true);
@@ -298,20 +298,20 @@ window.sauvegarderConfig = async function sauvegarderConfig() {
   const chk = id => document.getElementById(id)?.checked ?? false;
   const val = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
-    format: val("p-format") || "thermal",
-    devisePos: val("p-devise-pos") || "after",
-    devise: val("p-devise") || window.entreprise.devise || "F CFA",
-    showLogo: chk("p-show-logo"),
-    showCompany: chk("p-show-company"),
-    showDate: chk("p-show-date"),
-    showRef: chk("p-show-ref"),
-    showRendu: chk("p-show-rendu"),
-    showTva: chk("p-show-tva"),
-    tvaRate: parseFloat(val("p-tva-rate")) || 18,
-    showSign: chk("p-show-sign"),
-    headerText: val("p-header"),
+    format:       val("p-format")    || "thermal",
+    devisePos:    val("p-devise-pos")|| "after",
+    devise:       val("p-devise")    || window.entreprise.devise || "F CFA",
+    showLogo:     chk("p-show-logo"),
+    showCompany:  chk("p-show-company"),
+    showDate:     chk("p-show-date"),
+    showRef:      chk("p-show-ref"),
+    showRendu:    chk("p-show-rendu"),
+    showTva:      chk("p-show-tva"),
+    tvaRate:      parseFloat(val("p-tva-rate")) || 18,
+    showSign:     chk("p-show-sign"),
+    headerText:   val("p-header"),
     footerThanks: val("p-footer-thanks"),
-    footerLegal: val("p-footer-legal"),
+    footerLegal:  val("p-footer-legal"),
   };
   loader(true);
   try {
@@ -326,14 +326,14 @@ window.sauvegarderConfig = async function sauvegarderConfig() {
 window.changerMotDePasse = async function changerMotDePasse() {
   const p1 = document.getElementById("p-pwd-new")?.value;
   const p2 = document.getElementById("p-pwd-confirm")?.value;
-  if (!p1) { toast("Saisis un nouveau mot de passe.", "err"); return; }
-  if (p1 !== p2) { toast("Les mots de passe ne correspondent pas.", "err"); return; }
+  if (!p1)        { toast("Saisis un nouveau mot de passe.", "err"); return; }
+  if (p1 !== p2)  { toast("Les mots de passe ne correspondent pas.", "err"); return; }
   if (p1.length < 6) { toast("Mot de passe trop court (min 6).", "err"); return; }
   loader(true);
   try {
     await window.currentUser.updatePassword(p1);
     toast("✅ Mot de passe mis à jour !");
-    ["p-pwd-new", "p-pwd-confirm"].forEach(id => {
+    ["p-pwd-new","p-pwd-confirm"].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = "";
     });
   } catch (e) { toast("Reconnecte-toi et réessaie.", "err"); }
@@ -397,39 +397,39 @@ window.supprimerLigne = function supprimerLigne(i) {
 // ─────────────────────────────────────────────────────
 
 window.calcRecap = function calcRecap() {
-  const cfg = window.config;
-  const ent = window.entreprise;
-  const dev = cfg.devise ?? ent.devise ?? "F CFA";
-  const pos = cfg.devisePos ?? "after";
+  const cfg      = window.config;
+  const ent      = window.entreprise;
+  const dev      = cfg.devise    ?? ent.devise ?? "F CFA";
+  const pos      = cfg.devisePos ?? "after";
   const fmtLocal = n => {
     const s = Math.round(Number(n ?? 0)).toLocaleString("fr-FR");
     return pos === "before" ? `${dev}\u00A0${s}` : `${s}\u00A0${dev}`;
   };
 
   const remisePct = parseFloat(document.getElementById("opt-remise")?.value) || 0;
-  const applyTva = document.getElementById("opt-tva")?.checked || false;
-  const tvaRate = parseFloat(document.getElementById("p-tva-rate")?.value ?? cfg.tvaRate ?? 18);
+  const applyTva  = document.getElementById("opt-tva")?.checked || false;
+  const tvaRate   = parseFloat(document.getElementById("p-tva-rate")?.value ?? cfg.tvaRate ?? 18);
 
-  const ht = window.lignes.reduce((acc, l) => acc + l.qte * l.prix * (1 - l.remise / 100), 0);
+  const ht       = window.lignes.reduce((acc, l) => acc + l.qte * l.prix * (1 - l.remise / 100), 0);
   const remiseMt = ht * remisePct / 100;
-  const base = ht - remiseMt;
-  const tvaMt = applyTva ? base * tvaRate / 100 : 0;
-  const total = base + tvaMt;
+  const base     = ht - remiseMt;
+  const tvaMt    = applyTva ? base * tvaRate / 100 : 0;
+  const total    = base + tvaMt;
 
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const set  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? "" : "none"; };
 
-  set("r-ht", fmtLocal(ht));
-  set("r-tva", fmtLocal(tvaMt));
+  set("r-ht",     fmtLocal(ht));
+  set("r-tva",    fmtLocal(tvaMt));
   set("r-remise", `-${fmtLocal(remiseMt)}`);
-  set("r-total", fmtLocal(total));
-  show("r-tva-row", applyTva);
+  set("r-total",  fmtLocal(total));
+  show("r-tva-row",    applyTva);
   show("r-remise-row", remisePct > 0);
 
   const mRecu = parseFloat(document.getElementById("v-montant-recu")?.value) || 0;
   if (mRecu > 0 && window.docType !== "devis") {
     show("r-rendu-row", true);
-    const rendu = mRecu - total;
+    const rendu   = mRecu - total;
     const renduEl = document.getElementById("r-rendu");
     if (renduEl) {
       renduEl.textContent = fmtLocal(rendu);
@@ -449,21 +449,21 @@ window.calcRecap = function calcRecap() {
 function buildVenteData() {
   const { ht, remiseMt, tvaMt, total, tvaRate, remise, applyTva } = calcRecap();
   return {
-    type: window.docType,
-    numero: null, // attribué par persisterVente()
-    date: new Date(),
+    type:    window.docType,
+    numero:  null, // attribué par persisterVente()
+    date:    new Date(),
     client: {
-      nom: document.getElementById("v-client-nom")?.value.trim() ?? "",
-      tel: document.getElementById("v-client-tel")?.value.trim() ?? "",
-      email: document.getElementById("v-client-email")?.value.trim() ?? "",
+      nom:     document.getElementById("v-client-nom")?.value.trim()     ?? "",
+      tel:     document.getElementById("v-client-tel")?.value.trim()     ?? "",
+      email:   document.getElementById("v-client-email")?.value.trim()   ?? "",
       adresse: document.getElementById("v-client-adresse")?.value.trim() ?? "",
     },
-    lignes: window.lignes.map(l => ({ ...l })),
-    paiement: document.getElementById("v-paiement")?.value ?? "especes",
+    lignes:      window.lignes.map(l => ({ ...l })),
+    paiement:    document.getElementById("v-paiement")?.value ?? "especes",
     montantRecu: parseFloat(document.getElementById("v-montant-recu")?.value) || 0,
-    note: document.getElementById("v-note")?.value.trim() ?? "",
+    note:        document.getElementById("v-note")?.value.trim() ?? "",
     ht, remiseMt, tvaMt, total, tvaRate, remise, applyTva,
-    devise: window.config.devise ?? window.entreprise.devise ?? "F CFA",
+    devise:    window.config.devise    ?? window.entreprise.devise ?? "F CFA",
     devisePos: window.config.devisePos ?? "after",
   };
 }
@@ -514,10 +514,10 @@ window.sauvegarderSeulement = async function sauvegarderSeulement() {
 };
 
 window.resetForm = function resetForm() {
-  ["v-client-nom", "v-client-tel", "v-client-email", "v-client-adresse",
-    "v-note", "v-montant-recu", "opt-remise"].forEach(id => {
-      const el = document.getElementById(id); if (el) el.value = "";
-    });
+  ["v-client-nom","v-client-tel","v-client-email","v-client-adresse",
+   "v-note","v-montant-recu","opt-remise"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
   const tvaEl = document.getElementById("opt-tva");
   if (tvaEl) tvaEl.checked = window.config.showTva ?? false;
   window.lignes = [];
@@ -538,19 +538,19 @@ async function persisterVente(data) {
   let savedData = null;
   try {
     const counterRef = settingsRef("counter");
-    const ventesRef = db.collection("ventes");
+    const ventesRef  = db.collection("ventes");
 
     await db.runTransaction(async transaction => {
       const counterSnap = await transaction.get(counterRef);
-      const currentVal = counterSnap.exists ? (counterSnap.data().val ?? 0) : 0;
-      const newVal = currentVal + 1;
-      const numero = genNumero(data.type, newVal);
+      const currentVal  = counterSnap.exists ? (counterSnap.data().val ?? 0) : 0;
+      const newVal      = currentVal + 1;
+      const numero      = genNumero(data.type, newVal);
 
       const toSave = {
         ...data,
         numero,
-        date: firebase.firestore.Timestamp.fromDate(data.date),
-        uid: window.currentUser.uid,
+        date:      firebase.firestore.Timestamp.fromDate(data.date),
+        uid:       window.currentUser.uid,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -594,7 +594,7 @@ async function chargerDashboard() {
     // [FIX D] Mettre à jour le cache global partagé
     window.allVentes = ventes;
 
-    const now = new Date();
+    const now       = new Date();
     const debutJour = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const debutMois = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -606,8 +606,8 @@ async function chargerDashboard() {
     });
 
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set("stat-jour", nJour);
-    set("stat-mois", nMois);
+    set("stat-jour",    nJour);
+    set("stat-mois",    nMois);
     set("stat-ca-jour", Math.round(caJour).toLocaleString("fr-FR"));
     set("stat-ca-mois", Math.round(caMois).toLocaleString("fr-FR"));
 
@@ -617,9 +617,9 @@ async function chargerDashboard() {
 }
 
 function renderRecentList(ventes) {
-  const tbody = document.getElementById("dash-recent-list");
+  const tbody   = document.getElementById("dash-recent-list");
   if (!tbody) return;
-  const typeLbl = { facture: "Facture", recu: "Reçu", devis: "Devis" };
+  const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
   if (!ventes.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucune vente enregistrée</td></tr>';
     return;
@@ -664,15 +664,15 @@ window.chargerHistorique = async function chargerHistorique() {
 };
 
 window.filtrerHistorique = function filtrerHistorique() {
-  const q = (document.getElementById("hist-search")?.value ?? "").toLowerCase().trim();
-  const typeF = document.getElementById("hist-type-filter")?.value ?? "";
+  const q         = (document.getElementById("hist-search")?.value ?? "").toLowerCase().trim();
+  const typeF     = document.getElementById("hist-type-filter")?.value ?? "";
   const dateDebut = document.getElementById("hist-date-debut")?.value ?? "";
-  const dateFin = document.getElementById("hist-date-fin")?.value ?? "";
+  const dateFin   = document.getElementById("hist-date-fin")?.value   ?? "";
 
   let result = window.allVentes;
 
   if (q) result = result.filter(v =>
-    (v.numero ?? "").toLowerCase().includes(q) ||
+    (v.numero      ?? "").toLowerCase().includes(q) ||
     (v.client?.nom ?? "").toLowerCase().includes(q) ||
     (v.client?.tel ?? "").toLowerCase().includes(q)
   );
@@ -700,12 +700,12 @@ window.setPeriode = function setPeriode(periode, btn) {
   document.querySelectorAll(".chip[data-periode]").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
 
-  const now = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const toISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const now    = new Date();
+  const pad    = n => String(n).padStart(2, "0");
+  const toISO  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 
   const debutInput = document.getElementById("hist-date-debut");
-  const finInput = document.getElementById("hist-date-fin");
+  const finInput   = document.getElementById("hist-date-fin");
   if (!debutInput || !finInput) return;
 
   if (!periode) {
@@ -717,9 +717,9 @@ window.setPeriode = function setPeriode(periode, btn) {
     debutInput.value = toISO(d7); finInput.value = toISO(now);
   } else if (periode === "month") {
     debutInput.value = toISO(new Date(now.getFullYear(), now.getMonth(), 1));
-    finInput.value = toISO(now);
+    finInput.value   = toISO(now);
   } else if (periode === "lastmonth") {
-    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lm  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lme = new Date(now.getFullYear(), now.getMonth(), 0);
     debutInput.value = toISO(lm); finInput.value = toISO(lme);
   }
@@ -727,7 +727,7 @@ window.setPeriode = function setPeriode(periode, btn) {
 };
 
 window.resetFiltresHistorique = function resetFiltresHistorique() {
-  ["hist-search", "hist-date-debut", "hist-date-fin"].forEach(id => {
+  ["hist-search","hist-date-debut","hist-date-fin"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
   const sel = document.getElementById("hist-type-filter");
@@ -746,17 +746,17 @@ function updateTotalBar(ventes) {
   if (!ventes.length) { bar.style.display = "none"; return; }
   const total = ventes.reduce((s, v) => s + (v.total ?? 0), 0);
   bar.style.display = "flex";
-  lbl.textContent = `${ventes.length} document${ventes.length > 1 ? "s" : ""} affiché${ventes.length > 1 ? "s" : ""}`;
-  val.textContent = fmt(total);
+  lbl.textContent   = `${ventes.length} document${ventes.length > 1 ? "s" : ""} affiché${ventes.length > 1 ? "s" : ""}`;
+  val.textContent   = fmt(total);
 }
 
 function renderHistorique(ventes) {
-  const tbody = document.getElementById("hist-list");
+  const tbody   = document.getElementById("hist-list");
   if (!tbody) return;
-  const typeLbl = { facture: "Facture", recu: "Reçu", devis: "Devis" };
-  const pmodes = {
-    especes: "💵 Espèces", mobile_money: "📱 Mobile Money",
-    virement: "🏦 Virement", cheque: "📋 Chèque", credit: "💳 Crédit",
+  const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
+  const pmodes  = {
+    especes:"💵 Espèces", mobile_money:"📱 Mobile Money",
+    virement:"🏦 Virement", cheque:"📋 Chèque", credit:"💳 Crédit",
   };
 
   if (!ventes.length) {
@@ -837,7 +837,7 @@ window.updateBadgeCredits = function updateBadgeCredits() {
     const badge = document.getElementById("sb-credits-badge");
     if (badge) {
       badge.style.display = nbEncours > 0 ? "inline-block" : "none";
-      badge.textContent = nbEncours > 9 ? "9+" : String(nbEncours);
+      badge.textContent   = nbEncours > 9 ? "9+" : String(nbEncours);
     }
   } catch (e) { console.warn("updateBadgeCredits:", e); }
 };
@@ -850,8 +850,8 @@ window.ouvrirDetail = function ouvrirDetail(id) {
   const v = window.allVentes.find(x => x.id === id);
   if (!v) return;
 
-  const typeLbl = { facture: "Facture", recu: "Reçu", devis: "Devis" };
-  const pmodes = { especes: "Espèces", mobile_money: "Mobile Money", virement: "Virement", cheque: "Chèque", credit: "Crédit" };
+  const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
+  const pmodes  = { especes:"Espèces", mobile_money:"Mobile Money", virement:"Virement", cheque:"Chèque", credit:"Crédit" };
 
   document.getElementById("modal-detail-title").textContent =
     `${typeLbl[v.type] ?? v.type} — ${v.numero ?? ""}`;
@@ -905,8 +905,8 @@ window.ouvrirDetail = function ouvrirDetail(id) {
 
   // [FIX G] Conversion Timestamp → Date avant impression/PDF
   const venteData = { ...v, date: toDateObj(v.date) };
-  const printBtn = document.getElementById("modal-print-btn");
-  const pdfBtn = document.getElementById("modal-pdf-btn");
+  const printBtn  = document.getElementById("modal-print-btn");
+  const pdfBtn    = document.getElementById("modal-pdf-btn");
   if (printBtn) {
     printBtn.style.display = "";
     printBtn.onclick = () => {
@@ -926,7 +926,7 @@ window.fermerModal = function fermerModal() {
   document.getElementById("modal-detail").classList.remove("active");
 };
 
-document.getElementById("modal-detail")?.addEventListener("click", function (e) {
+document.getElementById("modal-detail")?.addEventListener("click", function(e) {
   if (e.target === this) fermerModal();
 });
 
@@ -938,25 +938,25 @@ window.exporterExcel = function exporterExcel() {
   const ventes = window.allVentes;
   if (!ventes.length) { toast("Aucune donnée.", "info"); return; }
   const rows = ventes.map(v => ({
-    "Numéro": v.numero ?? "",
-    "Type": v.type ?? "",
-    "Client": v.client?.nom ?? "",
-    "Téléphone": v.client?.tel ?? "",
-    "Paiement": v.paiement ?? "",
-    "Total": v.total ?? 0,
-    "Date": fmtDate(v.date),
-    "Note": v.note ?? "",
+    "Numéro":   v.numero      ?? "",
+    "Type":     v.type        ?? "",
+    "Client":   v.client?.nom ?? "",
+    "Téléphone":v.client?.tel ?? "",
+    "Paiement": v.paiement    ?? "",
+    "Total":    v.total       ?? 0,
+    "Date":     fmtDate(v.date),
+    "Note":     v.note        ?? "",
   }));
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(";"),
-    ...rows.map(r => headers.map(h => `"${String(r[h]).replace(/"/g, '""')}"`).join(";")),
+    ...rows.map(r => headers.map(h => `"${String(r[h]).replace(/"/g,'""')}"`).join(";")),
   ].join("\n");
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ventes_${new Date().toISOString().slice(0, 10)}.csv`;
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `ventes_${new Date().toISOString().slice(0,10)}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
