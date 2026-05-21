@@ -1,43 +1,43 @@
 // ══════════════════════════════════════════════════════
-//  app.js  —  FacturaPro  v4
+//  app.js  —  FacturaPro  v5
 //
-//  CORRECTIONS v4 (par rapport à v3) :
-//  [A] Utilitaires déplacés dans utils.js (global)
+//  NOUVEAUTÉS v5 :
+//  [A] Authentification Google (GoogleAuthProvider)
+//  [B] seConnecterAvecGoogle() avec popup + redirect fallback
+//  [C] Initialisation automatique des settings pour
+//      les nouveaux comptes Google (première connexion)
+//  [D] getRedirectResult() géré au démarrage
+//      → Vercel/Safari ne bloquent pas le retour OAuth
+//  [E] Helper settingsRef() — isolation par uid
+//      (chaque utilisateur a ses propres données)
+//
+//  CORRECTIONS conservées depuis v4 :
+//  [A] Utilitaires dans utils.js (global)
 //  [B] enablePersistence() activé → offline OK
-//  [C] step="1" sur prix (entier F CFA), step="0.001" qté
-//  [D] allVentes exposé globalement (window.allVentes)
-//      → credits.js réutilise le cache, zéro re-lecture
-//  [E] Listener hash URL → shortcuts PWA fonctionnels
-//  [F] Guard allProduits chargé avant autocomplete
-//  [G] Toutes dates converties via toDateObj() avant
-//      .toLocaleDateString() → plus de crash Timestamp
-//  [H] Sanitisation données client pour jsPDF
-//  [I] Gestion offline via enablePersistence()
+//  [C] allVentes exposé globalement (window.allVentes)
+//  [D] Listener hash URL → shortcuts PWA
+//  [E] Guard allProduits chargé avant autocomplete
+//  [F] Toutes dates converties via toDateObj()
+//  [G] Sanitisation données client pour jsPDF
 // ══════════════════════════════════════════════════════
 
 "use strict";
 
-
-
-
-
-
 // ─────────────────────────────────────────────────────
-//  ÉTAT GLOBAL (exposé sur window pour inter-modules)
+//  ÉTAT GLOBAL
 // ─────────────────────────────────────────────────────
 window.currentUser  = null;
 window.lignes       = [];
 window.docType      = "facture";
 window.entreprise   = {};
 window.config       = {};
-window.allVentes    = [];   // [FIX D] cache global partagé avec credits.js
+window.allVentes    = [];
 let _saving         = false;
 
-// Persistence activée dans firebase-config.js (avant utils.js)
-
-
-// Ajoute cette helper en haut de app.js,
-// juste après les déclarations d'état global
+// ─────────────────────────────────────────────────────
+//  [FIX E] HELPER — chemins Firestore isolés par uid
+//  Chaque commerçant a ses propres settings/counter
+// ─────────────────────────────────────────────────────
 
 function settingsRef(doc) {
   const uid = window.currentUser.uid;
@@ -66,21 +66,19 @@ window.showView = function showView(id, btn) {
   const el = document.getElementById("topbar-title");
   if (el) el.textContent = titles[id] ?? id;
 
-  // Déclencher les chargements selon la vue
-  if (id === "dashboard")        chargerDashboard();
-  if (id === "historique")       chargerHistorique();
-  if (id === "credits")          chargerCredits();
-  if (id === "catalogue")        chargerCatalogue();
+  if (id === "dashboard")  chargerDashboard();
+  if (id === "historique") chargerHistorique();
+  if (id === "credits")    chargerCredits();
+  if (id === "catalogue")  chargerCatalogue();
 };
 
 // ─────────────────────────────────────────────────────
-//  [FIX E] ROUTING HASH — shortcuts PWA
-//  /#nouvelle-vente, /#historique, etc.
+//  ROUTING HASH — shortcuts PWA
 // ─────────────────────────────────────────────────────
 
 function handleHashRoute() {
-  const hash = window.location.hash.replace("#", "").trim();
-  const allowed = ["dashboard", "nouvelle-vente", "historique", "credits", "catalogue", "parametres"];
+  const hash    = window.location.hash.replace("#", "").trim();
+  const allowed = ["dashboard","nouvelle-vente","historique","credits","catalogue","parametres"];
   if (!hash || !allowed.includes(hash)) return;
   const btn = document.querySelector(`.sb-item[data-view="${hash}"]`);
   showView(hash, btn);
@@ -111,28 +109,104 @@ function validerFormulaire() {
 }
 
 // ─────────────────────────────────────────────────────
-//  AUTHENTIFICATION
+//  APRÈS CONNEXION RÉUSSIE — initialisation app
 // ─────────────────────────────────────────────────────
 
-auth.onAuthStateChanged(user => {
-  if (user) {
-    window.currentUser = user;
-    document.getElementById("login-screen").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    const el = document.getElementById("topbar-user");
-    if (el) el.textContent = user.email;
-    chargerEntreprise();
-    chargerConfig();
-    chargerDashboard();
-    // Initialiser le système POS cartes (défini dans index.html)
-    if (typeof posInit === "function") posInit();
-    updateBadgeCredits();
-    // Route initiale depuis le hash
-    handleHashRoute();
-    // PWA Service Worker
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(e => console.warn("SW:", e));
+async function onUserConnected(user) {
+  window.currentUser = user;
+
+  // Masquer login, afficher app
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+
+  // Afficher email ou nom Google dans la topbar
+  const el = document.getElementById("topbar-user");
+  if (el) el.textContent = user.displayName || user.email;
+
+  // Charger les données
+  await chargerEntreprise();
+  await chargerConfig();
+  chargerDashboard();
+
+  // [A] Pour les nouveaux comptes Google : initialiser les settings
+  await initSettingsPourNouvelUtilisateur(user);
+
+  // POS
+  if (typeof posInit === "function") posInit();
+  updateBadgeCredits();
+  handleHashRoute();
+
+  // PWA Service Worker
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(e => console.warn("SW:", e));
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  [C] INIT SETTINGS PREMIER UTILISATEUR GOOGLE
+//  Si c'est la toute première connexion, on crée
+//  des settings vides pour éviter les crashes
+// ─────────────────────────────────────────────────────
+
+async function initSettingsPourNouvelUtilisateur(user) {
+  try {
+    const snap = await settingsRef("entreprise").get();
+    if (!snap.exists) {
+      // Première connexion — pré-remplir avec infos Google
+      const defaultEntreprise = {
+        nom:      user.displayName || "",
+        slogan:   "",
+        tel:      "",
+        tel2:     "",
+        email:    user.email || "",
+        web:      "",
+        adresse:  "",
+        ville:    "",
+        pays:     "Togo",
+        devise:   "F CFA",
+        rc:       "",
+        nif:      "",
+        logoUrl:  user.photoURL || "",
+      };
+      await settingsRef("entreprise").set(defaultEntreprise);
+      window.entreprise = defaultEntreprise;
+
+      const defaultConfig = {
+        format:       "thermal",
+        devisePos:    "after",
+        devise:       "F CFA",
+        showLogo:     true,
+        showCompany:  true,
+        showDate:     true,
+        showRef:      false,
+        showRendu:    true,
+        showTva:      false,
+        tvaRate:      18,
+        showSign:     false,
+        headerText:   "",
+        footerThanks: "Merci pour votre achat !",
+        footerLegal:  "Articles non repris ni échangés.",
+      };
+      await settingsRef("config").set(defaultConfig);
+      window.config = defaultConfig;
+
+      // Mettre à jour la prévisualisation si on est sur l'onglet paramètres
+      if (typeof updatePreviewEntreprise === "function") updatePreviewEntreprise();
+
+      toast("👋 Bienvenue ! Complète tes infos dans Paramètres.", "info", 5000);
     }
+  } catch (e) {
+    console.warn("initSettingsPourNouvelUtilisateur:", e);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  AUTHENTIFICATION — État
+// ─────────────────────────────────────────────────────
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    await onUserConnected(user);
   } else {
     window.currentUser = null;
     document.getElementById("login-screen").classList.remove("hidden");
@@ -140,11 +214,40 @@ auth.onAuthStateChanged(user => {
   }
 });
 
+// ─────────────────────────────────────────────────────
+//  [D] GÉRER LE RETOUR REDIRECT GOOGLE (Vercel/Safari)
+//  Sur mobile Safari et certains navigateurs,
+//  signInWithPopup est bloqué → on utilise redirect
+//  getRedirectResult() récupère le résultat au retour
+// ─────────────────────────────────────────────────────
+
+auth.getRedirectResult().then(result => {
+  if (result && result.user) {
+    // Connexion par redirect réussie — onAuthStateChanged s'en charge
+    console.log("[Auth] Retour redirect Google OK :", result.user.email);
+  }
+}).catch(err => {
+  if (err.code !== "auth/no-current-user" && err.code !== "auth/null-user") {
+    console.error("[Auth] getRedirectResult error:", err);
+    // Afficher l'erreur seulement si ce n'est pas "pas de redirect en cours"
+    const errEl = document.getElementById("login-error");
+    if (errEl && err.message) {
+      errEl.textContent = "Erreur Google : " + _authErrorMsg(err.code);
+      errEl.style.display = "block";
+    }
+  }
+});
+
+// ─────────────────────────────────────────────────────
+//  CONNEXION EMAIL / MOT DE PASSE
+// ─────────────────────────────────────────────────────
+
 async function seConnecter() {
   const email = document.getElementById("l-email").value.trim();
   const pwd   = document.getElementById("l-pwd").value;
   const errEl = document.getElementById("login-error");
   errEl.style.display = "none";
+
   if (!email || !pwd) {
     errEl.textContent   = "Remplis tous les champs.";
     errEl.style.display = "block";
@@ -154,27 +257,92 @@ async function seConnecter() {
   try {
     await auth.signInWithEmailAndPassword(email, pwd);
   } catch (e) {
-    const msgs = {
-      "auth/invalid-email":      "Adresse email invalide.",
-      "auth/user-not-found":     "Aucun compte avec cet email.",
-      "auth/wrong-password":     "Mot de passe incorrect.",
-      "auth/invalid-credential": "Email ou mot de passe incorrect.",
-      "auth/too-many-requests":  "Trop de tentatives. Réessaie plus tard.",
-    };
-    errEl.textContent   = msgs[e.code] ?? e.message;
+    errEl.textContent   = _authErrorMsg(e.code) || e.message;
     errEl.style.display = "block";
   }
   loader(false);
 }
 
-window.seConnecter    = seConnecter;
-window.seDeconnecter  = () => auth.signOut();
+window.seConnecter = seConnecter;
 
 ["l-email", "l-pwd"].forEach(id => {
   document.getElementById(id)?.addEventListener("keydown", e => {
     if (e.key === "Enter") seConnecter();
   });
 });
+
+// ─────────────────────────────────────────────────────
+//  [B] CONNEXION GOOGLE
+//  Essaie popup en premier (desktop Chrome/Edge)
+//  Fallback automatique sur redirect (Safari/mobile)
+// ─────────────────────────────────────────────────────
+
+window.seConnecterAvecGoogle = async function seConnecterAvecGoogle() {
+  const errEl = document.getElementById("login-error");
+  errEl.style.display = "none";
+
+  const provider = new firebase.auth.GoogleAuthProvider();
+  // Forcer la sélection de compte même si déjà connecté
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  loader(true);
+  try {
+    // Tentative popup (desktop, Chrome Android)
+    await auth.signInWithPopup(provider);
+    // onAuthStateChanged prend le relai
+  } catch (popupErr) {
+    console.warn("[Auth] Popup bloqué, tentative redirect :", popupErr.code);
+
+    // Popup bloqué (Safari, WebView, certains mobiles) → redirect
+    if (
+      popupErr.code === "auth/popup-blocked"         ||
+      popupErr.code === "auth/popup-closed-by-user"  ||
+      popupErr.code === "auth/cancelled-popup-request"
+    ) {
+      try {
+        // La page va se recharger — getRedirectResult() gère le retour
+        await auth.signInWithRedirect(provider);
+      } catch (redirectErr) {
+        loader(false);
+        errEl.textContent   = _authErrorMsg(redirectErr.code) || redirectErr.message;
+        errEl.style.display = "block";
+      }
+    } else {
+      loader(false);
+      errEl.textContent   = _authErrorMsg(popupErr.code) || popupErr.message;
+      errEl.style.display = "block";
+    }
+  }
+  // loader(false) n'est PAS appelé ici en cas de succès popup
+  // car onAuthStateChanged masque l'écran de login
+};
+
+// ─────────────────────────────────────────────────────
+//  DÉCONNEXION
+// ─────────────────────────────────────────────────────
+
+window.seDeconnecter = () => auth.signOut();
+
+// ─────────────────────────────────────────────────────
+//  MESSAGES D'ERREUR AUTH
+// ─────────────────────────────────────────────────────
+
+function _authErrorMsg(code) {
+  const msgs = {
+    "auth/invalid-email":           "Adresse email invalide.",
+    "auth/user-not-found":          "Aucun compte avec cet email.",
+    "auth/wrong-password":          "Mot de passe incorrect.",
+    "auth/invalid-credential":      "Email ou mot de passe incorrect.",
+    "auth/too-many-requests":       "Trop de tentatives. Réessaie plus tard.",
+    "auth/account-exists-with-different-credential":
+      "Un compte existe déjà avec cet email. Connecte-toi avec email/mot de passe.",
+    "auth/network-request-failed":  "Problème de connexion réseau.",
+    "auth/user-disabled":           "Ce compte a été désactivé.",
+    "auth/popup-blocked":           "Le popup a été bloqué par le navigateur.",
+    "auth/cancelled-popup-request": "Connexion annulée.",
+  };
+  return msgs[code] ?? null;
+}
 
 // ─────────────────────────────────────────────────────
 //  PARAMÈTRES — CHARGEMENT
@@ -186,7 +354,7 @@ async function chargerEntreprise() {
     if (snap.exists) {
       window.entreprise = snap.data();
       remplirChampsEntreprise();
-      updatePreviewEntreprise();
+      if (typeof updatePreviewEntreprise === "function") updatePreviewEntreprise();
     }
   } catch (e) { console.error("chargerEntreprise:", e); }
 }
@@ -211,8 +379,7 @@ function remplirChampsEntreprise() {
     const el = document.getElementById(elId);
     if (el) el.value = window.entreprise[key] ?? "";
   }
-  updateLogoPreview();
-  // Mettre à jour la prévisualisation latérale (définie dans index.html)
+  if (typeof updateLogoPreview === "function") updateLogoPreview();
   if (typeof updatePreviewEntreprise === "function") updatePreviewEntreprise();
 }
 
@@ -235,7 +402,11 @@ function remplirChampsConfig() {
   if (cfg.format)    setChipValue("format-chips",     cfg.format,    "p-format");
   if (cfg.devisePos) setChipValue("devise-pos-chips", cfg.devisePos, "p-devise-pos");
 
-  const textMap = { "p-header":"headerText","p-footer-thanks":"footerThanks","p-footer-legal":"footerLegal" };
+  const textMap = {
+    "p-header":       "headerText",
+    "p-footer-thanks":"footerThanks",
+    "p-footer-legal": "footerLegal",
+  };
   for (const [elId, key] of Object.entries(textMap)) {
     const el = document.getElementById(elId);
     if (el && cfg[key]) el.value = cfg[key];
@@ -269,7 +440,7 @@ window.updatePreviewEntreprise = function updatePreviewEntreprise() {
   const infoEl = document.getElementById("prev-info");
   if (nomEl)  nomEl.textContent = nom;
   if (infoEl) infoEl.innerHTML  = [tel, em, adr].filter(Boolean).join(" · ") || "Téléphone · Email · Adresse";
-  updateLogoPreview();
+  if (typeof updateLogoPreview === "function") updateLogoPreview();
 };
 
 ["p-nom","p-tel","p-email","p-adresse"].forEach(id => {
@@ -279,16 +450,20 @@ window.updatePreviewEntreprise = function updatePreviewEntreprise() {
 window.sauvegarderEntreprise = async function sauvegarderEntreprise() {
   const g = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
-    nom:g("p-nom"),slogan:g("p-slogan"),tel:g("p-tel"),tel2:g("p-tel2"),
-    email:g("p-email"),web:g("p-web"),adresse:g("p-adresse"),ville:g("p-ville"),
-    pays:g("p-pays"),devise:g("p-devise")||"F CFA",rc:g("p-rc"),nif:g("p-nif"),logoUrl:g("p-logo-url"),
+    nom:     g("p-nom"),    slogan:  g("p-slogan"),
+    tel:     g("p-tel"),    tel2:    g("p-tel2"),
+    email:   g("p-email"),  web:     g("p-web"),
+    adresse: g("p-adresse"),ville:   g("p-ville"),
+    pays:    g("p-pays"),   devise:  g("p-devise") || "F CFA",
+    rc:      g("p-rc"),     nif:     g("p-nif"),
+    logoUrl: g("p-logo-url"),
   };
   if (!data.nom) { toast("Le nom de l'entreprise est obligatoire.", "err"); return; }
   loader(true);
   try {
     await settingsRef("entreprise").set(data);
     window.entreprise = data;
-    updatePreviewEntreprise();
+    if (typeof updatePreviewEntreprise === "function") updatePreviewEntreprise();
     toast("✅ Informations enregistrées !");
   } catch (e) { toast("Erreur : " + e.message, "err"); }
   loader(false);
@@ -298,9 +473,9 @@ window.sauvegarderConfig = async function sauvegarderConfig() {
   const chk = id => document.getElementById(id)?.checked ?? false;
   const val = id => document.getElementById(id)?.value.trim() ?? "";
   const data = {
-    format:       val("p-format")    || "thermal",
-    devisePos:    val("p-devise-pos")|| "after",
-    devise:       val("p-devise")    || window.entreprise.devise || "F CFA",
+    format:       val("p-format")     || "thermal",
+    devisePos:    val("p-devise-pos") || "after",
+    devise:       val("p-devise")     || window.entreprise.devise || "F CFA",
     showLogo:     chk("p-show-logo"),
     showCompany:  chk("p-show-company"),
     showDate:     chk("p-show-date"),
@@ -326,9 +501,18 @@ window.sauvegarderConfig = async function sauvegarderConfig() {
 window.changerMotDePasse = async function changerMotDePasse() {
   const p1 = document.getElementById("p-pwd-new")?.value;
   const p2 = document.getElementById("p-pwd-confirm")?.value;
-  if (!p1)        { toast("Saisis un nouveau mot de passe.", "err"); return; }
-  if (p1 !== p2)  { toast("Les mots de passe ne correspondent pas.", "err"); return; }
+  if (!p1)           { toast("Saisis un nouveau mot de passe.", "err"); return; }
+  if (p1 !== p2)     { toast("Les mots de passe ne correspondent pas.", "err"); return; }
   if (p1.length < 6) { toast("Mot de passe trop court (min 6).", "err"); return; }
+
+  // Vérifier si l'utilisateur est connecté via Google
+  const isGoogleUser = window.currentUser?.providerData
+    ?.some(p => p.providerId === "google.com");
+  if (isGoogleUser) {
+    toast("Les comptes Google n'ont pas de mot de passe FacturaPro.", "info");
+    return;
+  }
+
   loader(true);
   try {
     await window.currentUser.updatePassword(p1);
@@ -368,29 +552,12 @@ window.setDocType = function setDocType(type, btn) {
 };
 
 // ─────────────────────────────────────────────────────
-//  LIGNES ARTICLES
-//  [FIX C] step="1" pour prix entier, step="0.001" pour qté
-//  [FIX F] Guard allProduits avant autocomplete
+//  LIGNES — stubs compatibilité POS cartes
 // ─────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────
-//  LIGNES — Le nouveau système POS cartes (index.html)
-//  gère window.lignes directement via _pcSyncLignes().
-//  Ces fonctions sont conservées comme stubs de compatibilité.
-// ─────────────────────────────────────────────────────
-
-window.ajouterLigne = function ajouterLigne() {
-  // No-op : les cartes POS dans index.html gèrent les lignes
-  if (typeof posAddCard === "function") posAddCard();
-};
-
-window.calcLigne = function calcLigne(i) {
-  // No-op : calcul géré par _pcCalc() dans index.html
-};
-
-window.supprimerLigne = function supprimerLigne(i) {
-  // No-op : suppression gérée par posDelCard() dans index.html
-};
+window.ajouterLigne    = function() { if (typeof posAddCard === "function") posAddCard(); };
+window.calcLigne       = function() {};
+window.supprimerLigne  = function() {};
 
 // ─────────────────────────────────────────────────────
 //  CALCUL RÉCAPITULATIF
@@ -449,9 +616,9 @@ window.calcRecap = function calcRecap() {
 function buildVenteData() {
   const { ht, remiseMt, tvaMt, total, tvaRate, remise, applyTva } = calcRecap();
   return {
-    type:    window.docType,
-    numero:  null, // attribué par persisterVente()
-    date:    new Date(),
+    type:        window.docType,
+    numero:      null,
+    date:        new Date(),
     client: {
       nom:     document.getElementById("v-client-nom")?.value.trim()     ?? "",
       tel:     document.getElementById("v-client-tel")?.value.trim()     ?? "",
@@ -479,7 +646,6 @@ window.actionImprimer = async function actionImprimer() {
   const saved = await persisterVente(buildVenteData());
   if (!saved) return;
   try {
-    // [FIX G] date déjà un objet Date dans saved
     imprimerDocument(saved, window.entreprise, window.config);
     setTimeout(() => toast("🖨️ Dialogue d'impression ouvert"), 400);
   } catch (e) { toast("Erreur impression : " + e.message, "err"); }
@@ -490,8 +656,7 @@ window.actionGenererPDF = async function actionGenererPDF(fromModal, venteDataOv
     try {
       const nom = genererPDF(venteDataOverride, window.entreprise, window.config);
       toast(`📥 PDF prêt : ${nom}`);
-    }
-    catch (e) { toast("Erreur PDF : " + e.message, "err"); }
+    } catch (e) { toast("Erreur PDF : " + e.message, "err"); }
     return;
   }
   const v = validerFormulaire();
@@ -502,8 +667,7 @@ window.actionGenererPDF = async function actionGenererPDF(fromModal, venteDataOv
   try {
     const nom = genererPDF(saved, window.entreprise, window.config);
     toast(`📥 PDF prêt : ${nom}`);
-  }
-  catch (e) { toast("Erreur PDF : " + e.message, "err"); }
+  } catch (e) { toast("Erreur PDF : " + e.message, "err"); }
 };
 
 window.sauvegarderSeulement = async function sauvegarderSeulement() {
@@ -521,8 +685,6 @@ window.resetForm = function resetForm() {
   const tvaEl = document.getElementById("opt-tva");
   if (tvaEl) tvaEl.checked = window.config.showTva ?? false;
   window.lignes = [];
-  // Le système POS cartes (index.html inline) override cette fonction
-  // et réinitialise ses propres cartes. Ici on reset juste le type et le récap.
   setDocType("facture", document.querySelector(".doc-type-btn"));
   calcRecap();
 };
@@ -537,6 +699,7 @@ async function persisterVente(data) {
   loader(true);
   let savedData = null;
   try {
+    // [FIX E] Counter isolé par utilisateur
     const counterRef = settingsRef("counter");
     const ventesRef  = db.collection("ventes");
 
@@ -561,8 +724,10 @@ async function persisterVente(data) {
     });
 
     toast("✅ Vente enregistrée !");
-    // [FIX D] Mettre à jour le cache global
-    window.allVentes = [{ ...savedData, date: firebase.firestore.Timestamp.fromDate(data.date) }, ...window.allVentes];
+    window.allVentes = [
+      { ...savedData, date: firebase.firestore.Timestamp.fromDate(data.date) },
+      ...window.allVentes,
+    ];
     chargerDashboard();
     updateBadgeCredits();
   } catch (e) {
@@ -591,7 +756,6 @@ async function chargerDashboard() {
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => toDateObj(b.createdAt ?? b.date) - toDateObj(a.createdAt ?? a.date));
 
-    // [FIX D] Mettre à jour le cache global partagé
     window.allVentes = ventes;
 
     const now       = new Date();
@@ -670,15 +834,12 @@ window.filtrerHistorique = function filtrerHistorique() {
   const dateFin   = document.getElementById("hist-date-fin")?.value   ?? "";
 
   let result = window.allVentes;
-
-  if (q) result = result.filter(v =>
+  if (q)     result = result.filter(v =>
     (v.numero      ?? "").toLowerCase().includes(q) ||
     (v.client?.nom ?? "").toLowerCase().includes(q) ||
     (v.client?.tel ?? "").toLowerCase().includes(q)
   );
-
   if (typeF) result = result.filter(v => v.type === typeF);
-
   if (dateDebut) {
     const d0 = new Date(dateDebut + "T00:00:00");
     result = result.filter(v => toDateObj(v.date) >= d0);
@@ -687,14 +848,11 @@ window.filtrerHistorique = function filtrerHistorique() {
     const d1 = new Date(dateFin + "T23:59:59");
     result = result.filter(v => toDateObj(v.date) <= d1);
   }
-
   renderHistorique(result);
   updateTotalBar(result);
 };
 
-window.rechercherHistorique = function rechercherHistorique() {
-  filtrerHistorique();
-};
+window.rechercherHistorique = function() { filtrerHistorique(); };
 
 window.setPeriode = function setPeriode(periode, btn) {
   document.querySelectorAll(".chip[data-periode]").forEach(b => b.classList.remove("active"));
@@ -703,7 +861,6 @@ window.setPeriode = function setPeriode(periode, btn) {
   const now    = new Date();
   const pad    = n => String(n).padStart(2, "0");
   const toISO  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-
   const debutInput = document.getElementById("hist-date-debut");
   const finInput   = document.getElementById("hist-date-fin");
   if (!debutInput || !finInput) return;
@@ -808,7 +965,6 @@ window.reimprimerVente = function reimprimerVente(id) {
   const v = window.allVentes.find(x => x.id === id);
   if (!v) { toast("Vente introuvable.", "err"); return; }
   try {
-    // [FIX G] Conversion Timestamp → Date avant impression
     imprimerDocument({ ...v, date: toDateObj(v.date) }, window.entreprise, window.config);
     setTimeout(() => toast("🖨️ Dialogue d'impression ouvert"), 400);
   } catch (e) { toast("Erreur impression : " + e.message, "err"); }
@@ -818,7 +974,6 @@ window.retelechargerPDF = function retelechargerPDF(id) {
   const v = window.allVentes.find(x => x.id === id);
   if (!v) { toast("Vente introuvable.", "err"); return; }
   try {
-    // [FIX G] Conversion Timestamp → Date avant PDF
     const nom = genererPDF({ ...v, date: toDateObj(v.date) }, window.entreprise, window.config);
     toast(`📥 PDF : ${nom}`);
   } catch (e) { toast("Erreur PDF : " + e.message, "err"); }
@@ -826,7 +981,6 @@ window.retelechargerPDF = function retelechargerPDF(id) {
 
 // ─────────────────────────────────────────────────────
 //  BADGE CRÉDITS
-//  [FIX D] Réutilise window.allVentes — pas de re-lecture
 // ─────────────────────────────────────────────────────
 
 window.updateBadgeCredits = function updateBadgeCredits() {
@@ -851,7 +1005,8 @@ window.ouvrirDetail = function ouvrirDetail(id) {
   if (!v) return;
 
   const typeLbl = { facture:"Facture", recu:"Reçu", devis:"Devis" };
-  const pmodes  = { especes:"Espèces", mobile_money:"Mobile Money", virement:"Virement", cheque:"Chèque", credit:"Crédit" };
+  const pmodes  = { especes:"Espèces", mobile_money:"Mobile Money",
+                    virement:"Virement", cheque:"Chèque", credit:"Crédit" };
 
   document.getElementById("modal-detail-title").textContent =
     `${typeLbl[v.type] ?? v.type} — ${v.numero ?? ""}`;
@@ -903,7 +1058,6 @@ window.ouvrirDetail = function ouvrirDetail(id) {
     ${v.note ? `<div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--ink-muted);"><strong>Note :</strong> ${escHtml(v.note)}</div>` : ""}
   `;
 
-  // [FIX G] Conversion Timestamp → Date avant impression/PDF
   const venteData = { ...v, date: toDateObj(v.date) };
   const printBtn  = document.getElementById("modal-print-btn");
   const pdfBtn    = document.getElementById("modal-pdf-btn");
@@ -938,14 +1092,14 @@ window.exporterExcel = function exporterExcel() {
   const ventes = window.allVentes;
   if (!ventes.length) { toast("Aucune donnée.", "info"); return; }
   const rows = ventes.map(v => ({
-    "Numéro":   v.numero      ?? "",
-    "Type":     v.type        ?? "",
-    "Client":   v.client?.nom ?? "",
-    "Téléphone":v.client?.tel ?? "",
-    "Paiement": v.paiement    ?? "",
-    "Total":    v.total       ?? 0,
-    "Date":     fmtDate(v.date),
-    "Note":     v.note        ?? "",
+    "Numéro":    v.numero      ?? "",
+    "Type":      v.type        ?? "",
+    "Client":    v.client?.nom ?? "",
+    "Téléphone": v.client?.tel ?? "",
+    "Paiement":  v.paiement    ?? "",
+    "Total":     v.total       ?? 0,
+    "Date":      fmtDate(v.date),
+    "Note":      v.note        ?? "",
   }));
   const headers = Object.keys(rows[0]);
   const csv = [
