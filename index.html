@@ -46,8 +46,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
   display:flex;align-items:center;justify-content:center;z-index:9999;
   overflow:hidden;
 }
-
-/* Fond animé avec grille et glow */
 .login-bg{
   position:absolute;inset:0;
   background-image:
@@ -78,7 +76,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 }
 @keyframes cardIn{from{opacity:0;transform:translateY(24px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
 
-/* Header login */
 .login-top{
   background:linear-gradient(135deg, var(--ink) 0%, #2C1F1A 100%);
   padding:36px 36px 28px;text-align:center;
@@ -102,7 +99,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .login-title{font-family:'DM Serif Display',serif;font-size:26px;color:#fff;margin-bottom:4px;}
 .login-sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);}
 
-/* Corps login */
 .login-body{padding:28px 32px 32px;}
 
 .login-error{
@@ -114,7 +110,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 }
 @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
 
-/* ── BOUTON GOOGLE ── */
 .login-google-btn{
   width:100%;padding:13px 16px;
   background:var(--surface);
@@ -143,7 +138,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 
 .google-icon{flex-shrink:0;}
 
-/* ── Séparateur ── */
 .login-divider{
   display:flex;align-items:center;gap:12px;
   margin-bottom:18px;
@@ -155,7 +149,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
   white-space:nowrap;
 }
 
-/* ── Champs email/pwd ── */
 .login-field{margin-bottom:14px;}
 .login-label{
   display:block;font-size:10px;letter-spacing:1.5px;
@@ -175,7 +168,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
   background:var(--surface);
 }
 
-/* ── Bouton principal ── */
 .login-btn{
   width:100%;padding:14px;
   background:var(--ink);color:#fff;
@@ -192,7 +184,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .login-btn:hover{background:var(--copper);transform:translateY(-1px);}
 .login-btn:active{transform:scale(.98);}
 
-/* Spinner dans le bouton Google */
 .google-spinner{
   width:16px;height:16px;
   border:2px solid var(--border);
@@ -206,7 +197,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .login-google-btn.loading .google-label{color:var(--ink-muted);}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-/* ── Pied login ── */
 .login-footer{
   margin-top:16px;text-align:center;
   font-size:11px;color:var(--ink-muted);
@@ -229,7 +219,6 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .sb-badge{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;min-width:18px;text-align:center;}
 .sb-footer{padding:14px;border-top:1px solid rgba(255,255,255,.07);}
 
-/* Avatar utilisateur dans le footer sidebar */
 .sb-user{
   display:flex;align-items:center;gap:10px;
   padding:10px 12px;margin-bottom:8px;
@@ -401,7 +390,6 @@ textarea.fc{resize:vertical;min-height:68px;}
 .save-btn{margin-top:16px;padding:11px 22px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:background .2s;}
 .save-btn:hover{background:var(--copper);}
 
-/* Alerte compte Google dans sécurité */
 .google-account-badge{
   display:flex;align-items:center;gap:10px;
   padding:12px 16px;
@@ -543,6 +531,9 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
   .stats-row{grid-template-columns:1fr 1fr;}
 }
 </style>
+
+<link rel="stylesheet" href="/css/pwa-install.css">
+
 </head>
 <body>
 
@@ -922,6 +913,8 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
             <span id="hist-total-label"></span>
             <span id="hist-total-val" style="font-family:'DM Mono',monospace;color:var(--copper);font-size:15px;"></span>
           </div>
+          <!-- Bouton charger plus — injecté dynamiquement par app.js -->
+          <div id="hist-charger-plus" style="padding:0 20px;"></div>
         </div>
       </div>
 
@@ -1137,7 +1130,101 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
                   <label class="sw"><input type="checkbox" id="p-show-tva"><div class="sw-track"></div></label>
                 </div>
               </div>
-              <div class="toggle-row"><div><div class="toggle-label">Signature vendeur</div></div><label class="sw"><input type="checkbox" id="p-show-sign"><div class="sw-track"></div></label></div>
+              <div class="toggle-row"><div><div class="toggle-label">Signature vendeur</div></div><label class="sw"><input type="checkbox" id="p-show-sign" onchange="toggleSignatureUpload()"><div class="sw-track"></div></label></div>
+
+              <!-- Zone upload signature + cachet (visible si signature activée) -->
+              <div id="signature-upload-section" style="display:none;margin-top:12px;">
+
+                <!-- ── SIGNATURE VENDEUR ── -->
+                <div style="padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);margin-bottom:10px;">
+                  <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--ink-soft);margin-bottom:8px;">
+                    ✍️ Signature du vendeur
+                  </div>
+                  <p style="font-size:12px;color:var(--ink-muted);margin-bottom:10px;line-height:1.5;">
+                    Apparaîtra dans le bloc gauche du PDF. <span style="font-size:11px;">PNG fond transparent recommandé.</span>
+                  </p>
+                  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                    <div id="sign-preview-wrap" style="
+                      width:160px;height:60px;flex-shrink:0;
+                      border:1.5px dashed var(--border);border-radius:8px;
+                      background:var(--surface);display:flex;align-items:center;
+                      justify-content:center;overflow:hidden;
+                      font-size:11px;color:var(--ink-muted);
+                    ">Aperçu signature</div>
+                    <div style="flex:1;min-width:140px;">
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                onclick="document.getElementById('sign-file-input').click()">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          Uploader
+                        </button>
+                        <button type="button" class="btn btn-sm" id="sign-delete-btn"
+                                style="background:var(--red-bg);color:var(--red);display:none;"
+                                onclick="supprimerImageConfig('signatureUrl','sign-preview-wrap','sign-delete-btn','p-signature-url')">
+                          Supprimer
+                        </button>
+                      </div>
+                      <div id="sign-progress-wrap" style="display:none;margin-bottom:4px;">
+                        <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+                          <div id="sign-progress-bar" style="height:100%;background:var(--copper);width:0%;transition:width .3s;border-radius:2px;"></div>
+                        </div>
+                        <span id="sign-progress-txt" style="font-size:10px;color:var(--ink-muted);">0%</span>
+                      </div>
+                      <div id="sign-status" style="font-size:11px;color:var(--ink-muted);"></div>
+                    </div>
+                  </div>
+                  <input type="file" id="sign-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleImageUpload(event,'signatureUrl','sign-preview-wrap','sign-delete-btn','sign-progress-bar','sign-progress-txt','sign-progress-wrap','sign-status','p-signature-url')">
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:11px;color:var(--ink-muted);cursor:pointer;list-style:none;">🔗 URL directe ▾</summary>
+                    <input type="text" id="p-signature-url" class="fc" placeholder="https://…/signature.png" oninput="updateImgPreview('p-signature-url','sign-preview-wrap','sign-delete-btn')" style="font-size:12px;margin-top:6px;">
+                  </details>
+                </div>
+
+                <!-- ── CACHET SOCIÉTÉ ── -->
+                <div style="padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+                  <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--ink-soft);margin-bottom:8px;">
+                    🔵 Cachet de la société
+                  </div>
+                  <p style="font-size:12px;color:var(--ink-muted);margin-bottom:10px;line-height:1.5;">
+                    Apparaîtra dans le bloc droit du PDF. <span style="font-size:11px;">PNG fond transparent recommandé.</span>
+                  </p>
+                  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                    <div id="cachet-preview-wrap" style="
+                      width:80px;height:80px;flex-shrink:0;
+                      border:1.5px dashed var(--border);border-radius:50%;
+                      background:var(--surface);display:flex;align-items:center;
+                      justify-content:center;overflow:hidden;
+                      font-size:11px;color:var(--ink-muted);text-align:center;
+                    ">Aperçu cachet</div>
+                    <div style="flex:1;min-width:140px;">
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                onclick="document.getElementById('cachet-file-input').click()">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          Uploader
+                        </button>
+                        <button type="button" class="btn btn-sm" id="cachet-delete-btn"
+                                style="background:var(--red-bg);color:var(--red);display:none;"
+                                onclick="supprimerImageConfig('cachetUrl','cachet-preview-wrap','cachet-delete-btn','p-cachet-url')">
+                          Supprimer
+                        </button>
+                      </div>
+                      <div id="cachet-progress-wrap" style="display:none;margin-bottom:4px;">
+                        <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+                          <div id="cachet-progress-bar" style="height:100%;background:var(--copper);width:0%;transition:width .3s;border-radius:2px;"></div>
+                        </div>
+                        <span id="cachet-progress-txt" style="font-size:10px;color:var(--ink-muted);">0%</span>
+                      </div>
+                      <div id="cachet-status" style="font-size:11px;color:var(--ink-muted);"></div>
+                    </div>
+                  </div>
+                  <input type="file" id="cachet-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleImageUpload(event,'cachetUrl','cachet-preview-wrap','cachet-delete-btn','cachet-progress-bar','cachet-progress-txt','cachet-progress-wrap','cachet-status','p-cachet-url')">
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:11px;color:var(--ink-muted);cursor:pointer;list-style:none;">🔗 URL directe ▾</summary>
+                    <input type="text" id="p-cachet-url" class="fc" placeholder="https://…/cachet.png" oninput="updateImgPreview('p-cachet-url','cachet-preview-wrap','cachet-delete-btn')" style="font-size:12px;margin-top:6px;">
+                  </details>
+                </div>
+              </div>
               <button class="save-btn" onclick="sauvegarderConfig()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px;"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                 Enregistrer la configuration
@@ -1275,6 +1362,11 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
 /* ═══════════════════════════════════════════════════════
    MISE À JOUR UI UTILISATEUR
    Appelée par app.js via onUserConnected
+
+   [PWA FIX] Le bloc PWA (install + service worker) a été
+   retiré d'ici. Il vit maintenant entièrement dans
+   js/pwa-install.js, chargé en toute fin de page, et
+   s'exécute dès le chargement (pas après connexion).
    ═══════════════════════════════════════════════════════ */
 
 // Surcharge de onUserConnected pour mettre à jour l'UI
@@ -1435,17 +1527,22 @@ function _pcBind(card, idx){
   document.addEventListener('click', function(e){ if(!card.contains(e.target)) _pcClose(dd); });
 }
 
+function _normalize(s){
+  return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+
 function _pcSearch(card, q, dd){
   const produits = window.allProduits ?? [];
   if(!produits.length){
     dd.innerHTML = '<div class="pc-empty">Catalogue vide — ajoute des produits d\'abord.</div>';
     dd.classList.add('open'); return;
   }
-  const term = q.toLowerCase();
+  // Normalisation accents + casse : "ciment" trouve "Ciment Portland"
+  const term = _normalize(q);
   const res = produits.filter(p =>
-    (p.nom??'').toLowerCase().includes(term)||
-    (p.ref??'').toLowerCase().includes(term)||
-    (p.categorie??'').toLowerCase().includes(term)
+    _normalize(p.nom      ).includes(term)||
+    _normalize(p.ref      ).includes(term)||
+    _normalize(p.categorie).includes(term)
   ).slice(0,8);
   _pcRender(card, res, q, dd);
 }
@@ -1676,7 +1773,161 @@ window.handleLogoFileSelect=function(event){const file=event.target.files?.[0];i
 window.handleLogoDrop=function(event){const file=event.dataTransfer.files?.[0];if(file)_doUploadLogo(file);};
 document.getElementById('p-logo-url')?.addEventListener('input',function(){_applyLogoUrl(this.value.trim()||'');});
 
+/* ═══════════════════════════════════════════════════
+   SIGNATURE & CACHET — Fonctions génériques
+   ═══════════════════════════════════════════════ */
+
+const CLOUD  = "dl3bs1azn";
+const PRESET = "facturapro_logos";
+
+// Toggle visibilité section upload
+window.toggleSignatureUpload = function() {
+  const show = document.getElementById('p-show-sign')?.checked;
+  const section = document.getElementById('signature-upload-section');
+  if (section) section.style.display = show ? '' : 'none';
+};
+
+// Mettre à jour un aperçu image depuis une URL input
+window.updateImgPreview = function(inputId, wrapId, delBtnId) {
+  const url  = document.getElementById(inputId)?.value.trim();
+  const wrap = document.getElementById(wrapId);
+  const del  = document.getElementById(delBtnId);
+  if (!wrap) return;
+  if (url) {
+    wrap.innerHTML = `<img src="${escHtml(url)}" alt="img"
+      style="max-width:100%;max-height:100%;object-fit:contain;"
+      onerror="this.parentNode.textContent='Image invalide'">`;
+    if (del) del.style.display = '';
+  } else {
+    wrap.textContent = wrapId.includes('cachet') ? 'Aperçu cachet' : 'Aperçu signature';
+    if (del) del.style.display = 'none';
+  }
+};
+
+// Alias pour app.js (remplir champs config)
+window.updateSignaturePreview = function() {
+  updateImgPreview('p-signature-url','sign-preview-wrap','sign-delete-btn');
+  updateImgPreview('p-cachet-url','cachet-preview-wrap','cachet-delete-btn');
+};
+
+// Supprimer une image de la config
+window.supprimerImageConfig = async function(configKey, wrapId, delBtnId, inputId) {
+  const input = document.getElementById(inputId);
+  if (input) input.value = '';
+  updateImgPreview(inputId, wrapId, delBtnId);
+  try {
+    const uid = window.currentUser?.uid;
+    if (uid) {
+      await db.collection("users").doc(uid)
+        .collection("settings").doc("config")
+        .set({ [configKey]: '' }, { merge: true });
+      if (window.config) window.config[configKey] = '';
+      toast('Image supprimée.');
+    }
+  } catch(e) { toast('Erreur : ' + e.message, 'err'); }
+};
+
+// Upload générique vers Cloudinary
+window.handleImageUpload = async function(
+  event, configKey,
+  wrapId, delBtnId,
+  barId, txtId, progWrapId, statusId, inputId
+) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+
+  if (file.size > 2*1024*1024) { toast('Fichier trop lourd (max 2 Mo).','err'); return; }
+
+  // Prévisualisation locale immédiate
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wrap = document.getElementById(wrapId);
+    if (wrap) wrap.innerHTML = `<img src="${e.target.result}"
+      style="max-width:100%;max-height:100%;object-fit:contain;">`;
+  };
+  reader.readAsDataURL(file);
+
+  const statusEl  = document.getElementById(statusId);
+  const progWrapEl= document.getElementById(progWrapId);
+  const barEl     = document.getElementById(barId);
+  const txtEl     = document.getElementById(txtId);
+
+  if (statusEl)   { statusEl.textContent = '⬆️ Upload…'; statusEl.style.color = 'var(--copper)'; }
+  if (progWrapEl)   progWrapEl.style.display = '';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', PRESET);
+    const uid = window.currentUser?.uid;
+    if (uid) fd.append('folder', `facturapro/${uid}/${configKey}`);
+    fd.append('tags', `facturapro,${configKey}`);
+
+    const url = await new Promise((res, rej) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded/e.total)*100);
+          if (barEl) barEl.style.width = pct+'%';
+          if (txtEl) txtEl.textContent = pct+'%';
+        }
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const r = JSON.parse(xhr.responseText);
+          res(r.secure_url || r.url);
+        } else { rej(new Error('HTTP '+xhr.status)); }
+      });
+      xhr.addEventListener('error', ()=>rej(new Error('Erreur réseau')));
+      xhr.timeout = 30000;
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`);
+      xhr.send(fd);
+    });
+
+    // Appliquer URL dans l'input
+    const inp = document.getElementById(inputId);
+    if (inp) inp.value = url;
+    updateImgPreview(inputId, wrapId, delBtnId);
+
+    // Sauvegarder Firestore
+    if (uid) {
+      await db.collection("users").doc(uid)
+        .collection("settings").doc("config")
+        .set({ [configKey]: url }, { merge: true });
+      if (window.config) window.config[configKey] = url;
+    }
+    if (statusEl) { statusEl.textContent = '✅ Enregistré !'; statusEl.style.color = 'var(--green)'; }
+    toast('✅ Image uploadée !');
+
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '❌ '+e.message; statusEl.style.color = 'var(--red)'; }
+    toast('Erreur : '+e.message, 'err');
+  } finally {
+    if (progWrapEl) progWrapEl.style.display = 'none';
+    if (barEl) barEl.style.width = '0%';
+  }
+};
+
+// Sync URL manuelles
+document.getElementById('p-signature-url')?.addEventListener('input',
+  ()=>updateImgPreview('p-signature-url','sign-preview-wrap','sign-delete-btn'));
+document.getElementById('p-cachet-url')?.addEventListener('input',
+  ()=>updateImgPreview('p-cachet-url','cachet-preview-wrap','cachet-delete-btn'));
+
 })();
 </script>
+
+<!-- ══════════════════════════════════════════════════════
+     PWA — Installation + Service Worker
+     [FIX] Tout le JS PWA (enregistrement SW + UI install)
+     vit maintenant dans ce fichier unique, chargé en dernier.
+     Il s'exécute dès le chargement de la page (window "load"),
+     AVANT la connexion utilisateur, pour que le Service
+     Worker contrôle la page à temps pour que Chrome déclenche
+     correctement beforeinstallprompt.
+     ══════════════════════════════════════════════════════ -->
+<script src="/js/pwa-install.js"></script>
+
 </body>
 </html>

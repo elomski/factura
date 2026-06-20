@@ -1,7 +1,17 @@
 // ══════════════════════════════════════════════════════
-//  app.js  —  FacturaPro  v5
+//  app.js  —  FacturaPro  v6
 //
-//  NOUVEAUTÉS v5 :
+//  NOUVEAUTÉS v6 :
+//  [PWA FIX] Enregistrement du Service Worker RETIRÉ
+//      d'ici → déplacé dans js/pwa-install.js, exécuté
+//      dès le chargement de la page (pas après le login).
+//      Raison : Chrome exige que le SW contrôle déjà la
+//      page pour déclencher beforeinstallprompt. En
+//      l'enregistrant seulement après connexion, la PWA
+//      n'était jamais installable pour un visiteur qui
+//      regardait l'écran de login.
+//
+//  NOUVEAUTÉS v5 (conservées) :
 //  [A] Authentification Google (GoogleAuthProvider)
 //  [B] seConnecterAvecGoogle() avec popup + redirect fallback
 //  [C] Initialisation automatique des settings pour
@@ -110,36 +120,65 @@ function validerFormulaire() {
 
 // ─────────────────────────────────────────────────────
 //  APRÈS CONNEXION RÉUSSIE — initialisation app
+//
+//  FIX BUG 1 — Chargement Google infini :
+//  - loader(false) + bouton Google reset immédiatement
+//  - flag _appInitDone évite le double appel
+//    (onAuthStateChanged peut se déclencher 2x avec popup)
+//
+//  FIX BUG 2 — Produits fréquents vides au POS :
+//  - chargerCatalogue() attendu AVANT posInit()
+//    pour que window.allProduits soit prêt
 // ─────────────────────────────────────────────────────
 
+let _appInitDone = false;
+
 async function onUserConnected(user) {
+  // Guard : éviter le double appel popup + onAuthStateChanged
+  if (_appInitDone && window.currentUser?.uid === user.uid) return;
+  _appInitDone = true;
   window.currentUser = user;
 
-  // Masquer login, afficher app
+  // Masquer login IMMÉDIATEMENT — stoppe le spinner visible
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
 
-  // Afficher email ou nom Google dans la topbar
+  // [FIX BUG 1] Couper le loader et le spinner du bouton Google
+  loader(false);
+  const btnGoogle = document.getElementById("btn-google");
+  if (btnGoogle) btnGoogle.classList.remove("loading");
+
+  // Afficher nom / email dans la topbar
   const el = document.getElementById("topbar-user");
   if (el) el.textContent = user.displayName || user.email;
 
-  // Charger les données
-  await chargerEntreprise();
-  await chargerConfig();
+  // Charger settings en parallèle (plus rapide)
+  await Promise.all([
+    chargerEntreprise(),
+    chargerConfig(),
+    initSettingsPourNouvelUtilisateur(user),
+  ]);
+
+  // [FIX BUG 2] Catalogue chargé AVANT posInit()
+  // → allProduits est disponible quand posRefreshQuick() s'exécute
+  await chargerCatalogue();
+
+  // Dashboard (fire-and-forget)
   chargerDashboard();
 
-  // [A] Pour les nouveaux comptes Google : initialiser les settings
-  await initSettingsPourNouvelUtilisateur(user);
-
-  // POS
+  // POS — allProduits est maintenant rempli
   if (typeof posInit === "function") posInit();
+
   updateBadgeCredits();
   handleHashRoute();
 
-  // PWA Service Worker
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(e => console.warn("SW:", e));
-  }
+  // [PWA FIX] Le Service Worker n'est PLUS enregistré ici.
+  // Il est désormais enregistré dans js/pwa-install.js dès
+  // le chargement de la page (window "load"), avant même
+  // que l'utilisateur se connecte. Cela permet à Chrome de
+  // déclencher beforeinstallprompt correctement, ce qui ne
+  // pouvait pas arriver tant que le SW n'était actif qu'après
+  // authentification.
 }
 
 // ─────────────────────────────────────────────────────
@@ -221,21 +260,34 @@ auth.onAuthStateChanged(async user => {
 //  getRedirectResult() récupère le résultat au retour
 // ─────────────────────────────────────────────────────
 
+// getRedirectResult — retour après signInWithRedirect (Safari/mobile)
+// onAuthStateChanged gère automatiquement la connexion réussie.
+// On ne montre une erreur QUE si c'est une vraie erreur (pas "pas de redirect en cours").
 auth.getRedirectResult().then(result => {
   if (result && result.user) {
-    // Connexion par redirect réussie — onAuthStateChanged s'en charge
     console.log("[Auth] Retour redirect Google OK :", result.user.email);
+    // onAuthStateChanged prend le relai — rien à faire ici
   }
 }).catch(err => {
-  if (err.code !== "auth/no-current-user" && err.code !== "auth/null-user") {
-    console.error("[Auth] getRedirectResult error:", err);
-    // Afficher l'erreur seulement si ce n'est pas "pas de redirect en cours"
-    const errEl = document.getElementById("login-error");
-    if (errEl && err.message) {
-      errEl.textContent = "Erreur Google : " + _authErrorMsg(err.code);
+  const ignoredCodes = [
+    "auth/no-current-user",
+    "auth/null-user",
+    "auth/cancelled-popup-request",
+  ];
+  if (!ignoredCodes.includes(err.code)) {
+    console.error("[Auth] getRedirectResult error:", err.code, err.message);
+    // Afficher l'erreur uniquement si l'écran de login est visible
+    const loginScreen = document.getElementById("login-screen");
+    const errEl       = document.getElementById("login-error");
+    if (errEl && loginScreen && !loginScreen.classList.contains("hidden")) {
+      errEl.textContent   = "Erreur Google : " + (_authErrorMsg(err.code) || err.message);
       errEl.style.display = "block";
     }
   }
+  // Dans tous les cas : couper le loader
+  loader(false);
+  const btnGoogle = document.getElementById("btn-google");
+  if (btnGoogle) btnGoogle.classList.remove("loading");
 });
 
 // ─────────────────────────────────────────────────────
@@ -281,6 +333,9 @@ window.seConnecterAvecGoogle = async function seConnecterAvecGoogle() {
   const errEl = document.getElementById("login-error");
   errEl.style.display = "none";
 
+  // Reset du flag pour permettre une nouvelle connexion
+  _appInitDone = false;
+
   const provider = new firebase.auth.GoogleAuthProvider();
   // Forcer la sélection de compte même si déjà connecté
   provider.setCustomParameters({ prompt: "select_account" });
@@ -289,7 +344,7 @@ window.seConnecterAvecGoogle = async function seConnecterAvecGoogle() {
   try {
     // Tentative popup (desktop, Chrome Android)
     await auth.signInWithPopup(provider);
-    // onAuthStateChanged prend le relai
+    // onAuthStateChanged prend le relai — loader(false) appelé dans onUserConnected
   } catch (popupErr) {
     console.warn("[Auth] Popup bloqué, tentative redirect :", popupErr.code);
 
@@ -403,9 +458,11 @@ function remplirChampsConfig() {
   if (cfg.devisePos) setChipValue("devise-pos-chips", cfg.devisePos, "p-devise-pos");
 
   const textMap = {
-    "p-header":       "headerText",
-    "p-footer-thanks":"footerThanks",
-    "p-footer-legal": "footerLegal",
+    "p-header":        "headerText",
+    "p-footer-thanks": "footerThanks",
+    "p-footer-legal":  "footerLegal",
+    "p-signature-url": "signatureUrl",
+    "p-cachet-url":    "cachetUrl",
   };
   for (const [elId, key] of Object.entries(textMap)) {
     const el = document.getElementById(elId);
@@ -414,6 +471,10 @@ function remplirChampsConfig() {
 
   const tvaLbl = document.getElementById("tva-pct-label");
   if (tvaLbl) tvaLbl.textContent = `Taux : ${cfg.tvaRate ?? 18} %`;
+
+  // Mise à jour preview signature et toggle visibilité
+  if (typeof updateSignaturePreview === "function") updateSignaturePreview();
+  if (typeof toggleSignatureUpload  === "function") toggleSignatureUpload();
 
   const dev = cfg.devise ?? window.entreprise.devise ?? "F CFA";
   ["stat-devise","stat-devise2"].forEach(id => {
@@ -487,6 +548,9 @@ window.sauvegarderConfig = async function sauvegarderConfig() {
     headerText:   val("p-header"),
     footerThanks: val("p-footer-thanks"),
     footerLegal:  val("p-footer-legal"),
+    // Signature — conservée si déjà présente, sinon lue depuis l'input
+    signatureUrl: val("p-signature-url") || window.config?.signatureUrl || "",
+    cachetUrl:    val("p-cachet-url")    || window.config?.cachetUrl    || "",
   };
   loader(true);
   try {
@@ -810,34 +874,124 @@ function renderRecentList(ventes) {
 //  HISTORIQUE
 // ─────────────────────────────────────────────────────
 
-window.chargerHistorique = async function chargerHistorique() {
-  if (!window.currentUser) return;
-  loader(true);
-  try {
-    const snap = await db.collection("ventes")
-      .where("uid", "==", window.currentUser.uid)
-      .get();
+// ─────────────────────────────────────────────────────
+//  HISTORIQUE — Pagination
+//  Charge les ventes par tranches de HIST_PAGE_SIZE.
+//  "Charger plus" ajoute la tranche suivante.
+//  filtrerHistorique() opère sur window.allVentes
+//  qui est le cache local de ce qui est chargé.
+// ─────────────────────────────────────────────────────
 
-    window.allVentes = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => toDateObj(b.createdAt ?? b.date) - toDateObj(a.createdAt ?? a.date));
+const HIST_PAGE_SIZE = 50; // documents par page
+let   _histLastDoc   = null; // curseur Firestore
+let   _histHasMore   = false;
+let   _histLoading   = false;
+
+window.chargerHistorique = async function chargerHistorique(reset = true) {
+  if (!window.currentUser) return;
+  if (_histLoading) return;
+  _histLoading = true;
+  loader(true);
+
+  try {
+    if (reset) {
+      window.allVentes = [];
+      _histLastDoc     = null;
+      _histHasMore     = false;
+    }
+
+    let query = db.collection("ventes")
+      .where("uid", "==", window.currentUser.uid)
+      .orderBy("createdAt", "desc")
+      .limit(HIST_PAGE_SIZE);
+
+    if (_histLastDoc) {
+      query = query.startAfter(_histLastDoc);
+    }
+
+    const snap = await query.get();
+
+    const nouvelles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    window.allVentes = [...window.allVentes, ...nouvelles];
+
+    // Mémoriser le curseur pour la page suivante
+    _histLastDoc = snap.docs[snap.docs.length - 1] ?? null;
+    _histHasMore = snap.docs.length === HIST_PAGE_SIZE;
 
     filtrerHistorique();
-  } catch (e) { toast("Erreur chargement : " + e.message, "err"); }
+    _renderChargerPlusBtn();
+
+  } catch (e) {
+    // Si l'index orderBy n'existe pas encore → fallback sans orderBy
+    if (e.code === "failed-precondition" || e.message?.includes("index")) {
+      try {
+        const snap2 = await db.collection("ventes")
+          .where("uid", "==", window.currentUser.uid)
+          .get();
+        window.allVentes = snap2.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => toDateObj(b.createdAt ?? b.date) - toDateObj(a.createdAt ?? a.date));
+        _histHasMore = false;
+        filtrerHistorique();
+        _renderChargerPlusBtn();
+        console.warn("Pagination désactivée — index Firestore manquant. Crée l'index pour l'activer.");
+      } catch (e2) {
+        toast("Erreur chargement : " + e2.message, "err");
+      }
+    } else {
+      toast("Erreur chargement : " + e.message, "err");
+    }
+  }
+
+  _histLoading = false;
   loader(false);
 };
 
+// Charger la page suivante
+window.chargerPlusVentes = async function chargerPlusVentes() {
+  if (!_histHasMore || _histLoading) return;
+  await chargerHistorique(false);
+};
+
+// Injecter / mettre à jour le bouton "Charger plus"
+function _renderChargerPlusBtn() {
+  const container = document.getElementById("hist-charger-plus");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (_histHasMore) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-ghost";
+    btn.style.cssText = "width:100%;justify-content:center;margin:12px 0;display:flex;";
+    btn.onclick = chargerPlusVentes;
+    btn.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+      ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polyline points="1 4 1 10 7 10"/>' +
+      '<path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>' +
+      "</svg> Charger plus de ventes";
+    container.appendChild(btn);
+  } else {
+    const nb  = window.allVentes.length;
+    const div = document.createElement("div");
+    div.style.cssText = "text-align:center;padding:10px;font-size:12px;color:var(--ink-muted);";
+    div.textContent   = nb + " vente" + (nb > 1 ? "s" : "") + " au total";
+    container.appendChild(div);
+  }
+}
 window.filtrerHistorique = function filtrerHistorique() {
-  const q         = (document.getElementById("hist-search")?.value ?? "").toLowerCase().trim();
+  // [FIX] Normalisation accents + casse pour la recherche
+  const _norm = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const q     = _norm(document.getElementById("hist-search")?.value ?? "");
   const typeF     = document.getElementById("hist-type-filter")?.value ?? "";
   const dateDebut = document.getElementById("hist-date-debut")?.value ?? "";
   const dateFin   = document.getElementById("hist-date-fin")?.value   ?? "";
 
   let result = window.allVentes;
-  if (q)     result = result.filter(v =>
-    (v.numero      ?? "").toLowerCase().includes(q) ||
-    (v.client?.nom ?? "").toLowerCase().includes(q) ||
-    (v.client?.tel ?? "").toLowerCase().includes(q)
+  if (q) result = result.filter(v =>
+    _norm(v.numero      ?? "").includes(q) ||
+    _norm(v.client?.nom ?? "").includes(q) ||
+    _norm(v.client?.tel ?? "").includes(q)
   );
   if (typeF) result = result.filter(v => v.type === typeF);
   if (dateDebut) {
