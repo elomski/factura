@@ -1,5 +1,22 @@
 // ══════════════════════════════════════════════════════
-//  pdf.js  —  FacturaPro  v20
+//  pdf.js  —  FacturaPro  v21
+//
+//  FIXES v21 (validés sur de vraies factures PDF, pas du calcul) :
+//  [1] "Suite page suivante" manquant quand c'est la section
+//      TOTAUX (pas le tableau) qui déborde sur une page de
+//      résumé via ajouterPageResume() — cas non couvert par
+//      la détection pagesAutoTable > 1, qui ne voit que les
+//      sauts de page internes au tableau lui-même.
+//  [2] Grand vide en bas de page (jusqu'à 27% de la page sur
+//      le cas réel testé) causé par bottomNeed qui ne
+//      réservait que l'espace du footer. Le tableau remplissait
+//      alors toute la page disponible, puis les totaux ne
+//      tenaient plus dans le reste et basculaient EN BLOC sur
+//      la page suivante, laissant le vide. bottomNeed réserve
+//      maintenant aussi l'espace estimé des totaux.
+//  [3] Vérifié sans doublon de "Suite page suivante" sur des
+//      cas allant de 4 à 75 articles, formats A5, page unique
+//      à 5 pages.
 //
 //  SYSTÈME ADAPTATIF PAR FORMAT
 //  ─────────────────────────────
@@ -441,8 +458,22 @@ function genererPDF(data, entreprise, config) {
   });
   let y = mg;
 
-  /* ── Helper page de résumé ──────────────────────── */
+  /* ── Helper page de résumé ──────────────────────────
+     [FIX v21] Dessine maintenant "Suite page suivante"
+     sur la page qu'on quitte (là où le tableau s'est
+     arrêté), avant de basculer sur la nouvelle page.
+     Couvre le cas où c'est la section TOTAUX (pas le
+     tableau lui-même) qui déborde sur une page de plus —
+     cas qui n'était pas couvert par la détection
+     pagesAutoTable > 1 (qui ne voit que les sauts de page
+     internes à autoTable, pas ceux ajoutés après coup).
+  ──────────────────────────────────────────────────── */
   function ajouterPageResume() {
+    // Dessiner "Suite page suivante" sur la page actuelle,
+    // juste après la fin du tableau (avant de tourner la page)
+    if (doc.lastAutoTable && doc.lastAutoTable.finalY != null) {
+      _drawSuitePage(doc, doc.lastAutoTable.finalY, pw, mg, FS);
+    }
     doc.addPage();
     _drawFooter(doc, footerY, mg, lw, pw, config, entreprise, S, FS, _C);
     _drawMiniHeader(doc, mg, pw, FS, typeLabel, data, entreprise, S);
@@ -606,9 +637,21 @@ function genererPDF(data, entreprise, config) {
   /* ══════════════════════════════════════════════════
      S4 — TABLEAU (autoTable)
 
-     bottomNeed = footer seulement
-     → autoTable remplit la page au maximum
-     → les totaux sont vérifiés APRÈS (post-autoTable)
+     [FIX v21] bottomNeed réserve maintenant l'espace
+     pour les totaux (totalNeedEstim) + footer, pas
+     seulement le footer.
+     → Sans ça, autoTable remplissait la page jusqu'à la
+       fin naturelle du tableau (ex: 138mm sur 195mm
+       disponibles), puis les totaux ne rentraient plus
+       dans le reste (57mm) et basculaient ENTIÈREMENT en
+       page 2 — laissant un grand vide inexpliqué en bas
+       de la page 1 (cas vérifié : 12 articles, A5, 27%
+       de la page perdue en blanc).
+     → Avec ce fix, le tableau s'arrête plus tôt pour
+       laisser la place aux totaux. S'ils tiennent quand
+       même pas (table très longue), tout bascule proprement
+       en page de résumé — mais avec beaucoup moins de vide
+       résiduel sur la dernière page du tableau.
   ══════════════════════════════════════════════════ */
   const cols = [];
   const colWidths = {};
@@ -639,8 +682,9 @@ function genererPDF(data, entreprise, config) {
     return row;
   });
 
-  // bottomNeed = footer seulement (autoTable remplit la page)
-  const bottomNeed = isTh ? 0 : FH + fMg + 5;
+  // [FIX v21] bottomNeed = totaux estimés + footer
+  // (au lieu de footer seulement) — voir explication ci-dessus
+  const bottomNeed = isTh ? 0 : Math.ceil(totalNeedEstim) + FH + fMg + 5;
 
   // MIN_ROWS dynamique selon espace réel
   let MIN_ROWS = 0;
