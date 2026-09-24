@@ -1,0 +1,660 @@
+/* ══════════════════════════════════════════════════════
+   pwa-install.css  —  FacturaPro
+   Styles du système d'installation PWA
+
+   Utilise les tokens CSS de FacturaPro :
+   --copper, --ink, --bg, --surface, --border, etc.
+   Fallbacks intégrés si chargé seul.
+   ══════════════════════════════════════════════════════ */
+
+/* ── Variables locales (fallbacks si tokens absents) ── */
+:root {
+  --pwa-copper:    var(--copper,    #B5622B);
+  --pwa-copper-lt: var(--copper-lt, #D4824A);
+  --pwa-ink:       var(--ink,       #1C1712);
+  --pwa-bg:        var(--bg,        #F7F3EE);
+  --pwa-surface:   var(--surface,   #FFF);
+  --pwa-border:    var(--border,    #DDD5C8);
+  --pwa-green:     var(--green,     #2A6644);
+  --pwa-shadow-lg: var(--shadow-lg, 0 12px 40px rgba(28,23,18,.18));
+  --pwa-radius:    var(--radius-lg, 16px);
+}
+
+/* ══════════════════════════════════════════════════════
+   1. BOUTON TOPBAR
+   ══════════════════════════════════════════════════════ */
+
+.pwa-topbar-btn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  padding:       7px 14px;
+  background:    transparent;
+  border:        1.5px solid var(--pwa-border);
+  border-radius: 20px;
+  font-family:   'DM Sans', sans-serif;
+  font-size:     12px;
+  font-weight:   600;
+  color:         var(--pwa-copper);
+  cursor:        pointer;
+  position:      relative;
+  overflow:      visible;
+  transition:    all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Caché par défaut → révélé par JS */
+  opacity:       0;
+  transform:     translateY(-6px) scale(0.9);
+  pointer-events: none;
+}
+
+.pwa-topbar-btn.pwa-btn-visible {
+  opacity:       1;
+  transform:     translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.pwa-topbar-btn:hover {
+  background:    var(--pwa-copper);
+  border-color:  var(--pwa-copper);
+  color:         #fff;
+  transform:     translateY(-1px) scale(1.03);
+  box-shadow:    0 4px 16px rgba(181,98,43,.35);
+}
+
+.pwa-topbar-btn:active {
+  transform: scale(0.97);
+}
+
+.pwa-btn-icon {
+  display:        flex;
+  align-items:    center;
+  justify-content: center;
+}
+
+.pwa-btn-label {
+  line-height: 1;
+}
+
+/* Badge pulsant rouge (nouvelle install dispo) */
+.pwa-btn-badge {
+  position:      absolute;
+  top:           -4px;
+  right:         -4px;
+  width:         10px;
+  height:        10px;
+  background:    #e53935;
+  border-radius: 50%;
+  border:        2px solid var(--pwa-surface);
+  animation:     pwaBadgePulse 2s ease-in-out infinite;
+}
+
+@keyframes pwaBadgePulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* Mobile : icône seulement (pas de label) */
+@media (max-width: 680px) {
+  .pwa-topbar-btn {
+    padding: 7px;
+    border-radius: 8px;
+  }
+  .pwa-btn-label { display: none; }
+  .pwa-btn-badge { top: -3px; right: -3px; }
+}
+
+/* ══════════════════════════════════════════════════════
+   2. MOBILE BANNER (bottom-sheet)
+   ══════════════════════════════════════════════════════ */
+
+.pwa-mobile-banner {
+  position:   fixed;
+  bottom:     0;
+  left:       0;
+  right:      0;
+  z-index:    8800;
+  background: var(--pwa-surface);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(28,23,18,.18);
+  transform:  translateY(110%);
+  transition: transform 0.4s cubic-bezier(0.34, 1.26, 0.64, 1);
+  /* Espace pour la barre système (notch) */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  will-change: transform;
+}
+
+.pwa-mobile-banner.pwa-banner-visible {
+  transform: translateY(0);
+}
+
+.pwa-mobile-banner.pwa-banner-hiding {
+  transform: translateY(110%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* Drag handle */
+.pwa-banner-drag-handle {
+  width:         40px;
+  height:        4px;
+  background:    var(--pwa-border);
+  border-radius: 2px;
+  margin:        12px auto 0;
+  cursor:        grab;
+  touch-action:  none;
+}
+
+.pwa-banner-inner {
+  padding: 16px 22px 22px;
+}
+
+/* App info row */
+.pwa-banner-app {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+  margin-bottom: 16px;
+}
+
+.pwa-banner-icon {
+  width:          56px;
+  height:         56px;
+  background:     linear-gradient(135deg, var(--pwa-copper) 0%, var(--pwa-copper-lt) 100%);
+  border-radius:  14px;
+  display:        flex;
+  align-items:    center;
+  justify-content: center;
+  font-size:      28px;
+  flex-shrink:    0;
+  box-shadow:     0 4px 16px rgba(181,98,43,.35);
+}
+
+.pwa-banner-name {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size:   18px;
+  color:       var(--pwa-ink);
+  line-height: 1.1;
+  margin-bottom: 3px;
+}
+
+.pwa-banner-desc {
+  font-size:  12px;
+  color:      #777;
+  margin-bottom: 4px;
+}
+
+.pwa-banner-stars {
+  font-size: 11px;
+  color:     var(--pwa-copper);
+  font-weight: 600;
+}
+
+.pwa-banner-stars span {
+  color: #999;
+  font-weight: 400;
+}
+
+/* Features pills */
+.pwa-banner-features {
+  display:     flex;
+  gap:         7px;
+  flex-wrap:   wrap;
+  margin-bottom: 18px;
+}
+
+.pwa-feature-pill {
+  padding:       5px 11px;
+  background:    var(--pwa-bg);
+  border:        1px solid var(--pwa-border);
+  border-radius: 20px;
+  font-size:     11px;
+  font-weight:   600;
+  color:         var(--pwa-ink);
+  white-space:   nowrap;
+}
+
+/* Actions */
+.pwa-banner-actions {
+  display:        flex;
+  flex-direction: column;
+  gap:            10px;
+}
+
+.pwa-banner-install {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             8px;
+  padding:         14px;
+  background:      var(--pwa-ink);
+  color:           #fff;
+  border:          none;
+  border-radius:   12px;
+  font-family:     'DM Sans', sans-serif;
+  font-size:       14px;
+  font-weight:     700;
+  cursor:          pointer;
+  transition:      background 0.2s, transform 0.15s;
+}
+
+.pwa-banner-install:hover,
+.pwa-banner-install:active {
+  background:  var(--pwa-copper);
+  transform:   scale(0.98);
+}
+
+.pwa-banner-got-it {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  padding:         14px;
+  background:      var(--pwa-copper);
+  color:           #fff;
+  border:          none;
+  border-radius:   12px;
+  font-family:     'DM Sans', sans-serif;
+  font-size:       14px;
+  font-weight:     700;
+  cursor:          pointer;
+  transition:      background 0.2s;
+}
+
+.pwa-banner-got-it:hover {
+  background: var(--pwa-copper-lt);
+}
+
+.pwa-banner-dismiss {
+  background:  transparent;
+  border:      none;
+  color:       #999;
+  font-family: 'DM Sans', sans-serif;
+  font-size:   13px;
+  cursor:      pointer;
+  padding:     6px;
+  transition:  color 0.2s;
+  text-align:  center;
+}
+
+.pwa-banner-dismiss:hover {
+  color: var(--pwa-ink);
+}
+
+/* ── Guide iOS ── */
+.pwa-ios-guide {
+  background:    var(--pwa-bg);
+  border-radius: 12px;
+  padding:       14px 16px;
+  margin-bottom: 16px;
+  display:       flex;
+  flex-direction: column;
+  gap:           10px;
+}
+
+.pwa-ios-step {
+  display:     flex;
+  align-items: flex-start;
+  gap:         10px;
+}
+
+.pwa-ios-step-num {
+  width:           22px;
+  height:          22px;
+  background:      var(--pwa-copper);
+  color:           #fff;
+  border-radius:   50%;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  font-size:       11px;
+  font-weight:     800;
+  flex-shrink:     0;
+  margin-top:      1px;
+}
+
+.pwa-ios-step-text {
+  font-size:   13px;
+  color:       var(--pwa-ink);
+  line-height: 1.45;
+}
+
+.pwa-ios-step-text strong {
+  color: var(--pwa-copper);
+}
+
+.pwa-ios-icon {
+  display:        inline-flex;
+  align-items:    center;
+  vertical-align: middle;
+  background:     rgba(181,98,43,.1);
+  border-radius:  5px;
+  padding:        2px 5px;
+  margin:         0 2px;
+}
+
+/* ══════════════════════════════════════════════════════
+   3. TABLET BANNER
+   ══════════════════════════════════════════════════════ */
+
+.pwa-tablet-banner {
+  border-radius: 20px !important;
+  max-width:     560px;
+  left:          50%;
+  right:         auto;
+  bottom:        24px;
+  transform:     translateX(-50%) translateY(calc(100% + 40px)) !important;
+  box-shadow:    var(--pwa-shadow-lg) !important;
+}
+
+.pwa-tablet-banner.pwa-banner-visible {
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.pwa-tablet-banner.pwa-banner-hiding {
+  transform: translateX(-50%) translateY(calc(100% + 40px)) !important;
+}
+
+.pwa-tablet-layout {
+  display:     flex;
+  gap:         18px;
+  align-items: flex-start;
+}
+
+.pwa-banner-icon-lg {
+  width:  72px;
+  height: 72px;
+  font-size: 34px;
+  border-radius: 18px;
+  flex-shrink: 0;
+}
+
+.pwa-tablet-title {
+  font-size:     20px;
+  margin-bottom: 6px;
+}
+
+.pwa-tablet-subtitle {
+  font-size:   13px;
+  color:       #666;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.pwa-tablet-features {
+  margin-bottom: 14px !important;
+}
+
+.pwa-tablet-actions {
+  display:     flex;
+  gap:         10px;
+  align-items: center;
+}
+
+.pwa-tablet-actions .pwa-banner-install {
+  flex: 1;
+  padding: 11px 16px;
+  font-size: 13px;
+}
+
+.pwa-tablet-actions .pwa-banner-dismiss {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pwa-ios-guide-inline {
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pwa-ios-guide-inline .pwa-ios-step-text {
+  font-size: 12px;
+}
+
+/* Bouton fermer (X) tablette */
+.pwa-banner-close-x {
+  position:    absolute;
+  top:         14px;
+  right:       14px;
+  background:  var(--pwa-bg);
+  border:      1px solid var(--pwa-border);
+  border-radius: 8px;
+  width:       28px;
+  height:      28px;
+  display:     flex;
+  align-items: center;
+  justify-content: center;
+  cursor:      pointer;
+  color:       #999;
+  transition:  all 0.2s;
+}
+
+.pwa-banner-close-x:hover {
+  background: var(--pwa-ink);
+  color:      #fff;
+  border-color: var(--pwa-ink);
+}
+
+/* Positionnement relatif pour le bouton close */
+.pwa-tablet-banner .pwa-banner-inner {
+  position: relative;
+  padding:  20px 22px 22px;
+}
+
+/* ══════════════════════════════════════════════════════
+   4. DESKTOP HINT (toast discret, coin bas-droit)
+   ══════════════════════════════════════════════════════ */
+
+.pwa-desktop-hint {
+  position:   fixed;
+  bottom:     24px;
+  right:      24px;
+  z-index:    8700;
+  background: var(--pwa-surface);
+  border:     1px solid var(--pwa-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(28,23,18,.14);
+  opacity:    0;
+  transform:  translateY(12px);
+  transition: all 0.35s cubic-bezier(0.34, 1.26, 0.64, 1);
+  max-width:  360px;
+  pointer-events: none;
+}
+
+.pwa-desktop-hint.pwa-hint-visible {
+  opacity:   1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.pwa-desktop-hint-inner {
+  display:     flex;
+  align-items: center;
+  gap:         10px;
+  padding:     12px 14px;
+}
+
+.pwa-hint-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.pwa-hint-text {
+  font-size:   12px;
+  color:       #666;
+  line-height: 1.4;
+  flex:        1;
+}
+
+.pwa-hint-install-btn {
+  padding:     7px 14px;
+  background:  var(--pwa-ink);
+  color:       #fff;
+  border:      none;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size:   12px;
+  font-weight: 700;
+  cursor:      pointer;
+  white-space: nowrap;
+  transition:  background 0.2s;
+  flex-shrink: 0;
+}
+
+.pwa-hint-install-btn:hover {
+  background: var(--pwa-copper);
+}
+
+.pwa-hint-close {
+  background:  transparent;
+  border:      none;
+  color:       #bbb;
+  cursor:      pointer;
+  padding:     4px;
+  display:     flex;
+  align-items: center;
+  border-radius: 5px;
+  transition:  color 0.2s;
+  flex-shrink: 0;
+}
+
+.pwa-hint-close:hover {
+  color: var(--pwa-ink);
+}
+
+/* ══════════════════════════════════════════════════════
+   5. SUCCESS MODAL (post-installation)
+   ══════════════════════════════════════════════════════ */
+
+.pwa-success-modal {
+  position:        fixed;
+  inset:           0;
+  background:      rgba(28,23,18,.55);
+  backdrop-filter: blur(4px);
+  z-index:         9100;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  padding:         20px;
+  opacity:         0;
+  transition:      opacity 0.3s ease;
+}
+
+.pwa-success-modal.pwa-modal-visible {
+  opacity: 1;
+}
+
+.pwa-success-inner {
+  background:    var(--pwa-surface);
+  border-radius: 20px;
+  padding:       32px 28px;
+  max-width:     360px;
+  width:         100%;
+  text-align:    center;
+  box-shadow:    var(--pwa-shadow-lg);
+  transform:     scale(0.9);
+  transition:    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pwa-success-modal.pwa-modal-visible .pwa-success-inner {
+  transform: scale(1);
+}
+
+.pwa-success-icon {
+  font-size:     52px;
+  display:       block;
+  margin-bottom: 14px;
+  animation:     pwaBounce 0.6s 0.1s both cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pwaBounce {
+  from { transform: scale(0) rotate(-15deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);  opacity: 1; }
+}
+
+.pwa-success-title {
+  font-family:   'DM Serif Display', Georgia, serif;
+  font-size:     22px;
+  color:         var(--pwa-ink);
+  margin-bottom: 10px;
+}
+
+.pwa-success-text {
+  font-size:     14px;
+  color:         #777;
+  line-height:   1.55;
+  margin-bottom: 22px;
+}
+
+.pwa-success-btn {
+  padding:     12px 28px;
+  background:  var(--pwa-ink);
+  color:       #fff;
+  border:      none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size:   14px;
+  font-weight: 700;
+  cursor:      pointer;
+  transition:  background 0.2s;
+}
+
+.pwa-success-btn:hover {
+  background: var(--pwa-copper);
+}
+
+/* ══════════════════════════════════════════════════════
+   6. ACCESSIBILITÉ & THÈME SOMBRE
+   ══════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-mobile-banner,
+  .pwa-desktop-hint,
+  .pwa-topbar-btn,
+  .pwa-success-modal,
+  .pwa-success-inner,
+  .pwa-banner-drag-handle { transition: none !important; animation: none !important; }
+  .pwa-btn-badge          { animation: none !important; }
+}
+
+/* Focus visible pour accessibilité clavier */
+.pwa-banner-install:focus-visible,
+.pwa-banner-dismiss:focus-visible,
+.pwa-banner-got-it:focus-visible,
+.pwa-hint-install-btn:focus-visible,
+.pwa-topbar-btn:focus-visible,
+.pwa-success-btn:focus-visible {
+  outline: 3px solid var(--pwa-copper);
+  outline-offset: 3px;
+}
+
+/* ══════════════════════════════════════════════════════
+   7. RESPONSIVE FINE-TUNING
+   ══════════════════════════════════════════════════════ */
+
+/* Très petit écran : banner prend toute la hauteur utile */
+@media (max-width: 360px) {
+  .pwa-banner-inner         { padding: 12px 16px 18px; }
+  .pwa-banner-icon          { width: 46px; height: 46px; font-size: 22px; }
+  .pwa-banner-name          { font-size: 16px; }
+  .pwa-banner-install,
+  .pwa-banner-got-it        { padding: 12px; font-size: 13px; }
+}
+
+/* Desktop : hint à droite de la sidebar si elle est visible */
+@media (min-width: 1200px) {
+  .pwa-desktop-hint {
+    right: 32px;
+    bottom: 32px;
+  }
+}
+
+/* Tablette paysage : banner horizontal */
+@media (min-width: 768px) and (orientation: landscape) {
+  .pwa-mobile-banner:not(.pwa-tablet-banner) {
+    max-width: 480px;
+    left:      50%;
+    transform: translateX(-50%) translateY(110%);
+    border-radius: 16px !important;
+  }
+  .pwa-mobile-banner:not(.pwa-tablet-banner).pwa-banner-visible {
+    transform: translateX(-50%) translateY(0);
+  }
+}
