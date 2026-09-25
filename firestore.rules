@@ -1,0 +1,196 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Un utilisateur fait-il partie de l'équipe de la boutique shopId ?
+    function estMembreDeLEquipe(shopId) {
+      return exists(/databases/$(database)/documents/staff_index/$(request.auth.uid))
+        && get(/databases/$(database)/documents/staff_index/$(request.auth.uid)).data.shopId == shopId;
+    }
+    function estProprietaireOuEquipe(shopId) {
+      return request.auth != null
+        && (shopId == request.auth.uid || estMembreDeLEquipe(shopId));
+    }
+
+    // [NOUVEAU — STOCK CAISSIER] Rôle de l'utilisateur courant pour la
+    // boutique shopId : 'owner' s'il EST la boutique, sinon le rôle
+    // stocké dans staff_index ('gerant' ou 'caissier'), sinon null s'il
+    // n'a aucun lien avec cette boutique.
+    function role(shopId) {
+      return shopId == request.auth.uid
+        ? 'owner'
+        : (estMembreDeLEquipe(shopId)
+            ? get(/databases/$(database)/documents/staff_index/$(request.auth.uid)).data.role
+            : null);
+    }
+    // Gérant ou propriétaire = a le droit de gérer le catalogue/stock.
+    function estGerantOuProprietaire(shopId) {
+      return estProprietaireOuEquipe(shopId) && role(shopId) != 'caissier';
+    }
+
+    // ── Annuaire de l'équipe : qui appartient à quelle boutique
+    match /staff_index/{staffId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == staffId || resource.data.shopId == request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.shopId == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.shopId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ── Ventes : boutique (propriétaire + équipe) + validation données
+    //    Le caissier PEUT vendre (create) et annuler une vente
+    //    (update → voir mouvements_stock/produits ci-dessous pour la
+    //    restitution de stock que cela déclenche).
+    match /ventes/{venteId} {
+      allow read, update, delete: if estProprietaireOuEquipe(resource.data.uid);
+      allow create: if estProprietaireOuEquipe(request.resource.data.uid)
+        && request.resource.data.type in ["facture", "recu", "devis"]
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0
+        && request.resource.data.ht is number
+        && request.resource.data.ht >= 0
+        && request.resource.data.paiement in [
+             "especes", "mobile_money", "virement", "cheque", "credit"
+           ]
+        && (!("note" in request.resource.data)
+            || (request.resource.data.note is string
+                && request.resource.data.note.size() <= 500));
+      match /paiements/{paiementId} {
+        allow read: if estProprietaireOuEquipe(
+          get(/databases/$(database)/documents/ventes/$(venteId)).data.uid);
+        allow create: if estProprietaireOuEquipe(
+          get(/databases/$(database)/documents/ventes/$(venteId)).data.uid)
+          && request.resource.data.montant is number
+          && request.resource.data.montant > 0
+          && (!("note" in request.resource.data)
+              || (request.resource.data.note is string
+                  && request.resource.data.note.size() <= 200));
+        allow update, delete: if estProprietaireOuEquipe(
+          get(/databases/$(database)/documents/ventes/$(venteId)).data.uid);
+      }
+    }
+
+    // ── Produits : boutique (propriétaire + équipe) + validation données
+    //
+    // [FIX STOCK-CAISSIER] Le caissier :
+    //   - LIT le catalogue (donc le stock) comme avant, sans restriction.
+    //   - NE PEUT PAS créer, supprimer, ni éditer un produit (nom, prix,
+    //     référence, catégorie…) : réservé à gérant/propriétaire.
+    //   - PEUT UNIQUEMENT faire baisser le champ "stock", et seulement
+    //     ce champ (aucun autre) — c'est exactement ce qui se passe
+    //     dans persisterVente() quand il encaisse une vente. Le stock
+    //     ne peut jamais AUGMENTER via cette voie, donc un caissier ne
+    //     peut pas se "réapprovisionner" lui-même ni annuler une vente
+    //     pour restituer du stock (ça reste une action gérant/owner).
+    match /produits/{produitId} {
+      allow read: if estProprietaireOuEquipe(resource.data.uid);
+
+      allow create: if estGerantOuProprietaire(request.resource.data.uid)
+        && request.resource.data.nom is string
+        && request.resource.data.nom.size() > 0
+        && request.resource.data.nom.size() <= 200
+        && request.resource.data.prix is number
+        && request.resource.data.prix >= 0
+        && (!("stock" in request.resource.data)
+            || request.resource.data.stock == null
+            || (request.resource.data.stock is number
+                && request.resource.data.stock >= 0));
+
+      allow delete: if estGerantOuProprietaire(resource.data.uid);
+
+      allow update: if estGerantOuProprietaire(resource.data.uid)
+        && request.resource.data.nom is string
+        && request.resource.data.nom.size() > 0
+        && request.resource.data.prix is number
+        && request.resource.data.prix >= 0
+        ||
+        // Vente d'un caissier : uniquement décrémenter "stock".
+        (estProprietaireOuEquipe(resource.data.uid)
+          && role(resource.data.uid) == 'caissier'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+          && request.resource.data.stock is number
+          && resource.data.stock is number
+          && request.resource.data.stock >= 0
+          && request.resource.data.stock <= resource.data.stock);
+    }
+
+    // ── Journal des mouvements de stock — traçabilité
+    //    (qui, quand, combien, pourquoi). Immuable : jamais de
+    //    update/delete, même par le propriétaire — un mouvement
+    //    erroné se corrige par un mouvement inverse, pas en
+    //    réécrivant l'historique.
+    //
+    //    [FIX STOCK-CAISSIER] Le caissier ne peut créer qu'un mouvement
+    //    de type "sortie" (généré automatiquement par une vente).
+    //    "entree" (ravitaillement), "ajustement" (édition manuelle) et
+    //    "retour"/"annulation" (restitution de stock) restent réservés
+    //    à gérant/propriétaire.
+    match /mouvements_stock/{mvtId} {
+      allow read: if estProprietaireOuEquipe(resource.data.shopId);
+      allow create: if estProprietaireOuEquipe(request.resource.data.shopId)
+        && request.resource.data.produitId is string
+        && request.resource.data.type in
+             ["entree", "sortie", "ajustement", "retour", "annulation"]
+        && request.resource.data.quantite is number
+        && request.resource.data.stockAvant is number
+        && request.resource.data.stockApres is number
+        && (
+          role(request.resource.data.shopId) != 'caissier'
+          || request.resource.data.type == 'sortie'
+        );
+      allow update, delete: if false;
+    }
+
+    // ── Ravitaillements / approvisionnements
+    //    [FIX STOCK-CAISSIER] Réservé à gérant/propriétaire.
+    match /ravitaillements/{ravId} {
+      allow read: if estProprietaireOuEquipe(resource.data.uid);
+      allow create: if estGerantOuProprietaire(request.resource.data.uid)
+        && request.resource.data.lignes is list
+        && request.resource.data.lignes.size() > 0
+        && request.resource.data.totalAchat is number
+        && request.resource.data.totalAchat >= 0;
+      // Pas d'update/delete pour l'instant — aucune fonctionnalité
+      // d'annulation de ravitaillement n'existe encore côté app.
+      allow update, delete: if false;
+    }
+
+    // ── Ancienne structure settings/ : BLOQUÉE définitivement
+    match /settings/{docId} {
+      allow read, write: if false;
+    }
+
+    // ── Structure par utilisateur (boutique)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+
+      // [FIX] Le compteur de numérotation (factures/reçus/devis ET
+      // ravitaillements) est incrémenté dans LA MÊME transaction que
+      // chaque vente/ravitaillement — donc un caissier ou un gérant
+      // doit pouvoir l'écrire aussi, sinon aucune vente d'équipe ne
+      // peut jamais être enregistrée. Cette règle s'ajoute à celle du
+      // dessus (Firestore combine les règles qui matchent un même
+      // chemin avec un OU) — elle ne remplace rien, elle élargit
+      // seulement l'accès à ce document précis.
+      match /settings/counter {
+        allow write: if estProprietaireOuEquipe(userId);
+      }
+
+      match /settings/{docId} {
+        // Lecture : propriétaire + équipe (besoin des infos boutique pour les reçus)
+        allow read: if estProprietaireOuEquipe(userId);
+        // Écriture (hors counter) : propriétaire uniquement — logo,
+        // signature, cachet, config restent une décision du propriétaire.
+        allow write: if request.auth != null && userId == request.auth.uid;
+      }
+    }
+
+    // ── Comptes plateforme autorisés à créer de nouvelles boutiques
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}
