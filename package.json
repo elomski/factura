@@ -1,0 +1,24 @@
+{
+  "name": "facturapro-corrige",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sw.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elomski/factura.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/elomski/factura/issues"
+  },
+  "homepage": "https://github.com/elomski/factura#readme",
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}
