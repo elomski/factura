@@ -843,21 +843,11 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
         <span>Crédits</span>
         <span class="sb-badge" id="sb-credits-badge" style="display:none;">!</span>
       </button>
-      <button class="sb-item" data-view="brouillons" onclick="showView('brouillons',this)">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M4 7l6-3.5L16 7v6l-6 3.5L4 13V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 7l6 3.5L16 7M10 10.5V17" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-        <span>Cartons ouverts</span>
-        <span class="sb-badge" id="sb-brouillons-badge" style="display:none;">!</span>
-      </button>
 
       <div class="sb-section">Catalogue</div>
       <button class="sb-item" data-view="catalogue" onclick="showView('catalogue',this)">
         <svg viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         <span>Produits</span>
-        <span class="sb-badge" id="sb-catalogue-badge" style="display:none;">!</span>
-      </button>
-      <button class="sb-item" data-view="mouvements-stock" onclick="showView('mouvements-stock',this)">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M4 10h9M13 10l-3-3M13 10l-3 3M16 10h-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 5v10M17 5v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span>Mouvements de stock</span>
       </button>
 
       <div class="sb-section hidden" id="sb-section-admin">Administration</div>
@@ -940,35 +930,13 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
           <div class="stat-card c3">
             <div class="stat-lbl">Total ce mois</div>
             <div class="stat-num" id="stat-mois">0</div>
-            <div class="stat-sub">documents <span id="stat-mois-evol"></span></div>
+            <div class="stat-sub">documents</div>
           </div>
           <div class="stat-card c4">
             <div class="stat-lbl">CA ce mois</div>
             <div class="stat-num" id="stat-ca-mois">0</div>
-            <div class="stat-sub" id="stat-devise2">F CFA <span id="stat-ca-mois-evol"></span></div>
+            <div class="stat-sub" id="stat-devise2">F CFA</div>
           </div>
-        </div>
-
-        <!-- ════════ TOP PRODUITS DU MOIS ════════ -->
-        <div class="panel" id="panel-top-produits" style="display:none;">
-          <div class="panel-head">
-            <div class="panel-title">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2l2.2 5.5L18 8.2l-4.3 3.9 1.2 5.9L10 15l-4.9 3 1.2-5.9L2 8.2l5.8-.7L10 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-              Top produits du mois
-            </div>
-          </div>
-          <div class="panel-body" id="top-produits-body" style="padding:0;"></div>
-        </div>
-
-        <!-- ════════ ALERTES STOCK ════════ -->
-        <div class="panel" id="panel-alertes-stock" style="display:none;">
-          <div class="panel-head">
-            <div class="panel-title">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 3l8 14H2L10 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8.5v3.5M10 14.5v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Alertes stock
-            </div>
-          </div>
-          <div class="panel-body" id="alertes-stock-body" style="padding:0;"></div>
         </div>
         <div class="panel">
           <div class="panel-head">
@@ -988,28 +956,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
             </table>
           </div>
         </div>
-
-        <!-- ════════ RAPPORT DE CAISSE ════════ -->
-        <div class="panel">
-          <div class="panel-head" style="flex-wrap:wrap;gap:10px;">
-            <div class="panel-title">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M4 3h12v14l-3-2-3 2-3-2-3 2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Rapport de caisse
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="date" id="rc-date" class="fc" style="width:auto;padding:8px 10px;font-size:12px;" onchange="genererRapportCaisse()">
-              <button class="btn btn-ghost btn-sm" onclick="genererRapportCaisse(true)">Aujourd'hui</button>
-              <button class="btn btn-primary btn-sm" onclick="imprimerRapportCaisseAction()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                Imprimer
-              </button>
-            </div>
-          </div>
-          <div class="panel-body" id="rc-body">
-            <div class="empty-state">Chargement…</div>
-          </div>
-        </div>
-
       </div>
 
       <!-- ════════ NOUVELLE VENTE ════════ -->
@@ -1179,8 +1125,8 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
           </div>
           <div style="overflow-x:auto;">
             <table class="hist-table">
-              <thead><tr><th>N°</th><th>Client</th><th>Type</th><th>Paiement</th><th>Montant</th><th>Vendeur</th><th>Date</th><th>Actions</th></tr></thead>
-              <tbody id="hist-list"><tr><td colspan="8" class="empty-state">Chargement…</td></tr></tbody>
+              <thead><tr><th>N°</th><th>Client</th><th>Type</th><th>Paiement</th><th>Montant</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="hist-list"><tr><td colspan="7" class="empty-state">Chargement…</td></tr></tbody>
             </table>
           </div>
           <div id="hist-total-bar" style="display:none;padding:12px 20px;background:var(--bg);border-top:1px solid var(--border);font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
@@ -1231,27 +1177,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
         </div>
       </div>
 
-      <!-- ════════ CARTONS OUVERTS (BROUILLONS) ════════ -->
-      <div id="view-brouillons" class="view">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M4 7l6-3.5L16 7v6l-6 3.5L4 13V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 7l6 3.5L16 7M10 10.5V17" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-              Cartons ouverts — vente au détail
-            </div>
-          </div>
-          <div class="panel-body">
-            <div style="font-size:12.5px;opacity:.75;margin-bottom:14px;">
-              Quand il ne reste que des cartons fermés pour un produit, choisir "Au détail" dans le catalogue propose d'en ouvrir un ici.
-              Ajoute chaque pièce vendue, puis <strong>Valide</strong> le brouillon pour l'enregistrer comme une vraie vente.
-            </div>
-            <div class="catalogue-grid" id="brouillons-grid">
-              <div class="empty-state" style="grid-column:1/-1;">Chargement…</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- ════════ CATALOGUE ════════ -->
       <div id="view-catalogue" class="view">
         <div class="panel">
@@ -1273,10 +1198,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 106 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
                 Historique ravitaillements
               </button>
-              <button class="btn btn-ghost" onclick="exporterCatalogueCSV()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                CSV
-              </button>
               <button id="btn-nouveau-produit" class="btn btn-primary" onclick="ouvrirModalProduit(null)">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                 Nouveau produit
@@ -1287,51 +1208,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
             <div class="catalogue-grid" id="catalogue-grid">
               <div class="empty-state" style="grid-column:1/-1;">Chargement…</div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ════════ MOUVEMENTS DE STOCK ════════ -->
-      <div id="view-mouvements-stock" class="view">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M4 10h9M13 10l-3-3M13 10l-3 3M16 10h-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 5v10M17 5v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Mouvements de stock
-            </div>
-            <div class="toolbar">
-              <div class="search-wrap">
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M14 14l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                <input type="text" id="mvt-search" placeholder="Nom du produit…" oninput="filtrerMouvements()">
-              </div>
-              <input type="date" id="mvt-date-debut" class="fc" style="width:auto;padding:8px 10px;font-size:12px;" onchange="filtrerMouvements()">
-              <input type="date" id="mvt-date-fin" class="fc" style="width:auto;padding:8px 10px;font-size:12px;" onchange="filtrerMouvements()">
-              <select class="fc" id="mvt-type-filter" style="width:auto;padding:9px 10px;font-size:12px;" onchange="filtrerMouvements()">
-                <option value="">Tous types</option>
-                <option value="entree">Entrées</option>
-                <option value="sortie">Sorties</option>
-                <option value="ajustement">Ajustements</option>
-                <option value="retour">Retours</option>
-                <option value="annulation">Annulations</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" onclick="resetFiltresMouvements()">✕ Reset</button>
-              <button class="btn btn-ghost btn-sm" onclick="exporterMouvementsCSV()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                CSV
-              </button>
-            </div>
-          </div>
-          <div style="padding:10px 20px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;">
-            <button class="chip active" data-periode-mvt="" onclick="setPeriodeMouvements('',this)">Tout</button>
-            <button class="chip" data-periode-mvt="today" onclick="setPeriodeMouvements('today',this)">Aujourd'hui</button>
-            <button class="chip" data-periode-mvt="week" onclick="setPeriodeMouvements('week',this)">7 jours</button>
-            <button class="chip" data-periode-mvt="month" onclick="setPeriodeMouvements('month',this)">Ce mois</button>
-          </div>
-          <div style="overflow-x:auto;">
-            <table class="hist-table">
-              <thead><tr><th>Date</th><th>Produit</th><th>Type</th><th>Quantité</th><th>Stock avant → après</th><th>Motif</th><th>Par</th></tr></thead>
-              <tbody id="mvt-list"><tr><td colspan="7" class="empty-state">Chargement…</td></tr></tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -1763,31 +1639,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-valider-brouillon">
-  <div class="modal">
-    <div class="modal-head">
-      <div class="modal-title">Valider le carton</div>
-      <button class="modal-close" onclick="fermerModalValiderBrouillon()"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <div id="mv-brouillon-recap" style="font-size:14px;font-weight:600;margin-bottom:14px;"></div>
-      <div class="fg">
-        <label class="flabel">Mode de paiement reçu</label>
-        <select id="mv-paiement" class="fc">
-          <option value="especes">Espèces</option>
-          <option value="mobile_money">Mobile Money</option>
-          <option value="virement">Virement bancaire</option>
-          <option value="cheque">Chèque</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="fermerModalValiderBrouillon()">Annuler</button>
-      <button class="btn btn-primary" onclick="confirmerValidationBrouillon()">Valider et enregistrer la vente</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="modal-produit">
   <div class="modal">
     <div class="modal-head">
@@ -1801,13 +1652,9 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
         <div class="fg"><label class="flabel">Catégorie</label><input type="text" id="mp-categorie" class="fc" placeholder="Construction"></div>
       </div>
       <div class="fr c2">
-        <div class="fg"><label class="flabel">Prix de vente (pièce) *</label><input type="number" id="mp-prix" class="fc" placeholder="0" min="0" step="1" oninput="majDetailStockProduit()"></div>
+        <div class="fg"><label class="flabel">Prix de vente *</label><input type="number" id="mp-prix" class="fc" placeholder="0" min="0" step="1"></div>
         <div class="fg"><label class="flabel">Stock en pièces (optionnel)</label><input type="number" id="mp-stock" class="fc" placeholder="50" min="0" step="1" oninput="majDetailStockProduit()"></div>
           <div class="fg"><label class="flabel">Pièces par carton (optionnel)</label><input type="number" id="mp-pcs" class="fc" placeholder="12" min="1" step="1" oninput="majDetailStockProduit()"><div id="mp-stock-detail" style="font-size:12px;opacity:.75;margin-top:4px;"></div></div>
-      </div>
-      <div class="fr c2">
-        <div class="fg"><label class="flabel">Remise carton (%, optionnel)</label><input type="number" id="mp-remise-carton" class="fc" placeholder="10" min="0" max="100" step="1" oninput="majDetailStockProduit()"><div id="mp-prix-carton-detail" style="font-size:12px;opacity:.75;margin-top:4px;"></div></div>
-        <div class="fg"><label class="flabel">Seuil d'alerte stock (optionnel)</label><input type="number" id="mp-seuil-alerte" class="fc" placeholder="ex: 5" min="0" step="1"><div style="font-size:11px;opacity:.6;margin-top:4px;">Par défaut : 1 carton restant, sinon 5 pièces</div></div>
       </div>
       <div class="fg"><label class="flabel">Description</label><textarea id="mp-description" class="fc" rows="2" placeholder="Description courte…"></textarea></div>
     </div>
@@ -1957,7 +1804,6 @@ mark.pc-hl{background:var(--copper-bg);color:var(--copper);border-radius:2px;pad
 <script src="js/catalogue.js"></script>
 <script src="js/ravitaillement.js"></script>
 <script src="js/credits.js"></script>
-<script src="js/brouillons.js"></script>
 <script src="js/app.js"></script>
 
 <script src="js/shop.js"></script>

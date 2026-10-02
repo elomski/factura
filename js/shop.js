@@ -484,12 +484,6 @@ window.posAddCard = function(){
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <div class="pc-unite-row" style="display:none;margin-bottom:8px;">
-      <div style="display:flex;gap:6px;">
-        <button type="button" class="chip pc-unite-btn active" data-unite="piece">À la pièce</button>
-        <button type="button" class="chip pc-unite-btn" data-unite="carton">Par carton</button>
-      </div>
-    </div>
     <div class="pc-body">
       <div class="pc-input-group">
         <span class="pc-input-lbl">Quantité</span>
@@ -546,15 +540,6 @@ function _pcBind(card, idx){
   qty.addEventListener('input',  ()=> _pcCalc(card));
   prix.addEventListener('input', ()=> _pcCalc(card));
   document.addEventListener('click', function(e){ if(!card.contains(e.target)) _pcClose(dd); });
-
-  // [NOUVEAU CARTON] Bascule pièce / carton sur cette carte.
-  card.querySelectorAll('.pc-unite-btn').forEach(btn => {
-    btn.addEventListener('click', function(){
-      card.dataset.unite = this.dataset.unite;
-      card.querySelectorAll('.pc-unite-btn').forEach(b => b.classList.toggle('active', b === this));
-      _pcAppliquerUnite(card);
-    });
-  });
 }
 
 function _normalize(s){
@@ -592,7 +577,7 @@ function _pcRender(card, results, q, dd){
     const sCls  = stock<=0?'out':stock<=5?'low':'';
     const sLbl  = stock<=0?'⚠️ Rupture':`Stock : ${stock}`;
     const dis   = stock<=0?'pc-disabled':'';
-    return `<div class="pc-item ${dis}" data-id="${p.id}" data-nom="${escHtml(p.nom)}" data-prix="${p.prix}" data-stock="${stock}" data-pcs="${p.pcsParCarton||1}" data-remise="${p.remiseCartonPct||0}">
+    return `<div class="pc-item ${dis}" data-id="${p.id}" data-nom="${escHtml(p.nom)}" data-prix="${p.prix}" data-stock="${stock}">
       <div class="pc-item-left">
         <div class="pc-item-name">${hl(p.nom)}</div>
         ${p.ref?`<div class="pc-item-ref">Réf : ${hl(p.ref)}</div>`:''}
@@ -607,10 +592,7 @@ function _pcRender(card, results, q, dd){
   dd.querySelectorAll('.pc-item:not(.pc-disabled)').forEach(item => {
     item.addEventListener('mousedown', function(e){
       e.preventDefault();
-      _pcSelect(card, {
-        id:this.dataset.id, nom:this.dataset.nom, prix:parseFloat(this.dataset.prix), stock:parseInt(this.dataset.stock),
-        pcsParCarton: parseInt(this.dataset.pcs)||1, remiseCartonPct: parseFloat(this.dataset.remise)||0,
-      });
+      _pcSelect(card, {id:this.dataset.id,nom:this.dataset.nom,prix:parseFloat(this.dataset.prix),stock:parseInt(this.dataset.stock)});
     });
   });
   dd.classList.add('open');
@@ -621,87 +603,21 @@ function _pcClose(dd){ dd.classList.remove('open'); }
 function _pcSelect(card, data){
   card.querySelector('.pc-search').value = data.nom;
   card.querySelector('.pc-pid').value    = data.id;
-
-  // [NOUVEAU CARTON] Mémorise les infos carton sur la carte (attrs
-  // data-*) pour que _pcAppliquerUnite() puisse recalculer prix/stock
-  // à chaque bascule pièce ↔ carton, même après re-sélection.
-  const pcs = data.pcsParCarton > 1 ? data.pcsParCarton : 1;
-  card.dataset.pcs        = pcs;
-  card.dataset.remise     = data.remiseCartonPct || 0;
-  card.dataset.prixPiece  = data.prix;
-  card.dataset.stockTotal = data.stock;
-
-  const uniteRow = card.querySelector('.pc-unite-row');
-  if (uniteRow) {
-    if (pcs > 1) {
-      uniteRow.style.display = '';
-      card.dataset.unite = (data.unite === 'carton') ? 'carton' : 'piece';
-      uniteRow.querySelectorAll('.pc-unite-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.unite === card.dataset.unite));
-    } else {
-      uniteRow.style.display = 'none';
-      card.dataset.unite = 'piece';
-    }
-  } else {
-    card.dataset.unite = (data.unite === 'carton') ? 'carton' : 'piece';
-  }
-
-  card.querySelector('.pc-stock-row').style.display = '';
-  _pcAppliquerUnite(card);
-
+  card.querySelector('.pc-prix').value   = data.prix;
+  const stockRow   = card.querySelector('.pc-stock-row');
+  const stockBadge = card.querySelector('.pc-stock-badge');
+  const stockVal   = card.querySelector('.pc-sv');
+  stockVal.textContent = data.stock;
+  stockBadge.className = 'pc-stock-badge '+(data.stock<=0?'out':data.stock<=5?'low':'ok');
+  stockRow.style.display = '';
+  const qtyEl = card.querySelector('.pc-qty');
+  qtyEl.max = data.stock;
+  if(parseInt(qtyEl.value)>data.stock) qtyEl.value=data.stock;
+  _pcCalc(card);
   _pcClose(card.querySelector('.pc-dropdown'));
   card.classList.add('pc-highlight');
   setTimeout(()=>card.classList.remove('pc-highlight'),500);
-  setTimeout(()=>card.querySelector('.pc-qty')?.select(),60);
-}
-
-// [NOUVEAU CARTON] Applique le mode pièce/carton courant de la carte :
-// recalcule le prix unitaire proposé et le stock max sélectionnable.
-// Mode "pièce" sans aucune pièce en vrac (tout est en cartons fermés)
-// → propose d'ouvrir un carton (voir js/brouillons.js) et retire la
-// carte, puisqu'il n'y a alors rien à vendre directement ici.
-function _pcAppliquerUnite(card){
-  const pid  = card.querySelector('.pc-pid')?.value;
-  const p    = (window.allProduits||[]).find(x=>x.id===pid);
-  const pcs  = parseInt(card.dataset.pcs)||1;
-  const unite = card.dataset.unite || 'piece';
-  const prixEl = card.querySelector('.pc-prix');
-  const qtyEl  = card.querySelector('.pc-qty');
-  const stockVal   = card.querySelector('.pc-sv');
-  const stockBadge = card.querySelector('.pc-stock-badge');
-
-  if (unite === 'carton') {
-    const prixC = p ? window.prixCarton(p)
-      : Math.round((parseFloat(card.dataset.prixPiece)||0) * pcs * (1 - (parseFloat(card.dataset.remise)||0)/100));
-    prixEl.value = prixC;
-    const stockTotal = p ? (p.stock ?? 0) : (parseInt(card.dataset.stockTotal)||0);
-    const maxCartons = Math.floor(stockTotal / pcs);
-    qtyEl.max = maxCartons;
-    if (parseInt(qtyEl.value) > maxCartons || !qtyEl.value) qtyEl.value = Math.max(1, maxCartons);
-    stockVal.textContent = maxCartons + ' carton(s)';
-    stockBadge.className = 'pc-stock-badge ' + (maxCartons<=0?'out':maxCartons<=1?'low':'ok');
-  } else {
-    const enVrac = p ? window.piecesEnVracDisponibles(p) : (parseInt(card.dataset.stockTotal)||0);
-    prixEl.value = card.dataset.prixPiece;
-    qtyEl.max = enVrac;
-    if (parseInt(qtyEl.value) > enVrac || !qtyEl.value) qtyEl.value = Math.max(enVrac>0?1:0, 0);
-    stockVal.textContent = enVrac;
-    stockBadge.className = 'pc-stock-badge ' + (enVrac<=0?'out':enVrac<=5?'low':'ok');
-
-    // Plus aucune pièce en vrac mais des cartons fermés disponibles :
-    // proposer d'ouvrir un carton au lieu de vendre "0 pièce".
-    if (enVrac <= 0 && pcs > 1 && p && (p.stock??0) >= pcs) {
-      const idx = card.dataset.idx;
-      setTimeout(() => {
-        if (!card.isConnected || card.dataset.unite !== 'piece') return;
-        if (confirm(`Il ne reste que des cartons fermés pour "${p.nom}".\nOuvrir un carton de ${pcs} pièces pour le vendre au détail ?`)) {
-          if (typeof window.ouvrirCartonPourProduit === 'function') window.ouvrirCartonPourProduit(p.id);
-        }
-        if (typeof posDelCard === 'function' && idx) posDelCard(parseInt(idx));
-      }, 30);
-    }
-  }
-  _pcCalc(card);
+  setTimeout(()=>qtyEl.select(),60);
 }
 
 function _pcCalc(card){
@@ -729,32 +645,19 @@ function _pcGrand(){
 function _pcSyncLignes(){
   window.lignes=[];
   document.querySelectorAll('#pos-cards .pos-card').forEach((c,i)=>{
-    const desRaw=c.querySelector('.pc-search')?.value.trim()??'';
+    const des=c.querySelector('.pc-search')?.value.trim()??'';
     const prix=parseFloat(c.querySelector('.pc-prix')?.value)||0;
     const qte=parseFloat(c.querySelector('.pc-qty')?.value)||0;
     // [FIX] .pc-pid (l'ID du produit choisi dans le catalogue) n'était
     // jamais lu ici : chaque resynchronisation de window.lignes perdait
     // le lien vers le produit, donc le stock n'était jamais décrémenté.
-    // [FIX UNDEFINED-FIRESTORE] "|| undefined" ci-dessous est LA cause
-    // de "Unsupported field value: undefined" au moment d'enregistrer
-    // une vente : Firestore refuse catégoriquement tout champ undefined,
-    // même niché dans un tableau (ici lignes[i].produitId). null est la
-    // valeur "vide" correcte à utiliser à sa place.
+    // [FIX UNDEFINED-FIRESTORE] "|| undefined" ci-dessous causait
+    // l'erreur "Unsupported field value: undefined" à l'enregistrement
+    // dès qu'une ligne n'était pas liée à un produit du catalogue
+    // (texte tapé à la main) : Firestore refuse TOUT champ undefined,
+    // même imbriqué dans un tableau. null est la valeur "vide" correcte.
     const pid=c.querySelector('.pc-pid')?.value || null;
-    // [NOUVEAU CARTON] unite='carton' → la ligne garde pcsParCarton
-    // pour que persisterVente() (app.js) décrémente le stock en
-    // pièces réelles (qte × pcsParCarton), pas en nombre de cartons.
-    const unite = c.dataset.unite === 'carton' ? 'carton' : 'piece';
-    const pcs   = parseInt(c.dataset.pcs)||1;
-    const des   = (unite==='carton' && pcs>1) ? `${desRaw} (carton de ${pcs})` : desRaw;
-    if(desRaw||prix>0) window.lignes.push({
-      id:Date.now()+i, des, prix, qte, remise:0, produitId:pid,
-      // [FIX UNDEFINED-FIRESTORE] Même chose ici : en mode "à la pièce"
-      // (le mode par défaut !), ce champ valait undefined et faisait
-      // échouer QUASIMENT TOUTE vente qui n'était pas explicitement en
-      // mode "Par carton". C'était la cause principale de ton erreur.
-      unite, pcsParCarton: unite==='carton' ? pcs : null,
-    });
+    if(des||prix>0) window.lignes.push({id:Date.now()+i,des,prix,qte,remise:0,produitId:pid});
   });
 }
 
@@ -768,11 +671,6 @@ window.posDelCard = function(idx){
     c.querySelector('.pc-prix').value='';
     c.querySelector('.pc-lt').textContent='0 F CFA';
     c.querySelector('.pc-stock-row').style.display='none';
-    // [NOUVEAU CARTON] Réinitialiser l'état pièce/carton de la carte.
-    delete c.dataset.unite; delete c.dataset.pcs; delete c.dataset.remise;
-    delete c.dataset.prixPiece; delete c.dataset.stockTotal;
-    const uRow = c.querySelector('.pc-unite-row');
-    if (uRow) { uRow.style.display='none'; uRow.querySelectorAll('.pc-unite-btn').forEach((b,i)=>b.classList.toggle('active', i===0)); }
     _pcGrand(); return;
   }
   const card=document.querySelector(`#pos-cards .pos-card[data-idx="${idx}"]`);
